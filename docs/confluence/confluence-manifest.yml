@@ -1,0 +1,70 @@
+# Confluence page tree for ms-clp-blp.
+#
+# Source of truth for creating/updating the space via the Confluence REST API.
+# Each node is exactly one page. `file` is relative to this manifest's directory.
+#
+# Publishing contract:
+#   - `title` is the Confluence page title and must stay stable (it is the update key).
+#   - Renaming a title creates a NEW page; change `file` instead when moving content.
+#   - Page bodies are GitHub-Flavored Markdown, written in Spanish. No HTML, no shields.io
+#     badges, no <details>.
+#   - ```mermaid``` fences are rendered to PNG by the publisher (mermaid-cli via npx), attached to
+#     their page and embedded, with the source collapsed below. MERMAID_MACRO=code publishes only
+#     the collapsed source.
+#   - Confluence is editable: the publisher seals what it wrote in a content property and, on the
+#     next run, keeps anything a human edited instead of overwriting it. `--force` is the only
+#     way the repository wins.
+#
+# Single source of truth is PER FEATURE (.claude/skills/confluence-docs/SKILL.md): each feature page
+# under Funcionalidades owns its contract, diagram, config, cURLs and support runbook; Plataforma
+# holds only what applies to several features.
+
+# TODO(ms-clp-blp): the Confluence space does not exist yet. Replace with its KEY (not its name)
+# once created; scripts/publish_confluence.sh overrides it with CONFLUENCE_SPACE.
+space: TODO_CLP_BLP_SPACE
+rootPage: ms-clp-blp
+
+metadata:
+  service: ms-clp-blp
+  repository: dig_crp_clp_blp_service
+  language: Java 21
+  framework: Spring Boot 4.1.0
+  runtime: Google Cloud Run
+  architecture:
+    - Feature First (vertical slices)
+    - Hexagonal Architecture (hexagon per slice)
+    - REST
+  lastReviewed: 2026-10-27
+  derivedFrom: source code only
+
+pages:
+  - title: ms-clp-blp
+    file: home.md
+
+  - title: Funcionalidades
+    file: funcionalidades.md
+    children:
+      - title: Páginas BLP y CLP
+        file: funcionalidades/paginas-blp-clp.md
+      - title: Carruseles de productos
+        file: funcionalidades/carruseles-de-productos.md
+
+  - title: Plataforma
+    file: plataforma.md
+    children:
+      - title: Arquitectura
+        file: plataforma/arquitectura.md
+      - title: Configuración
+        file: plataforma/configuracion.md
+      - title: Desarrollo y despliegue
+        file: plataforma/desarrollo.md
+      - title: Git Workflow
+        file: plataforma/git-workflow.md
+      - title: Cloud Run Environment Sync
+        file: plataforma/cloud-run-env-sync.md
+
+  - title: Referencia
+    file: reference.md
+    children:
+      - title: ADRs
+        file: reference/adrs.md

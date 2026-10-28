@@ -1,0 +1,159 @@
+name: Build and Deploy to Cloud Run [PROD]
+# Deploys are tag-only, enforced (see the "Enforce tag-based deploy" step below): trigger via
+# workflow_dispatch, selecting a git tag (e.g. v1.4.2 — created by tag-auto-develop.yml on every
+# develop push, or tag-manual.yml for a main/hotfix tag) as the ref to run from. A plain push to
+# deploy_PROD no longer deploys anything.
+on:
+    workflow_dispatch:
+
+env:
+    IMG_PROJECT_ID: sit-cicd-images-apps
+    IMG_GAR_LOCATION: us
+    IMG_REPOSITORY: digital-crp-clp-blp-service
+    SERVICE_REGION: us-east4
+jobs:
+    deploy-crp-clp-blp-service-prod:
+        permissions: 
+            contents: 'read'
+            id-token: 'write'
+        runs-on:
+            group: digital-01
+        environment: production
+
+        env:
+            SERVICE: ${{ vars.SERVICE }}
+            CLOUD_RUN_PROJECT: ${{ vars.CLOUD_RUN_PROJECT }}
+            INGRESS: ${{ vars.INGRESS }}
+            CPU: ${{ vars.CPU}}
+            MEMORY: ${{ vars.MEMORY}}
+
+        steps:
+            - name: Checkout PROD
+              uses: actions/checkout@v4
+              #with:
+              #  ref: refs/heads/main
+
+            - name: Enforce tag-based deploy PROD
+              run: |
+                if [ "${{ github.ref_type }}" != "tag" ]; then
+                  echo "::error::Deploys must be triggered from a tag (e.g. v1.2.3), not a branch. Selected ref_type=${{ github.ref_type }} ref_name=${{ github.ref_name }}." >&2
+                  exit 1
+                fi
+
+            - name: Set up Cloud SDK PROD
+              uses: 'google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a'
+              with:
+                version: '>= 416.0.0'
+                project_id: ${{ secrets.GCP_PROJECT_ID_PROD }}
+                
+            - name: Setup java PROD
+              uses: actions/setup-java@v5
+              with:
+                distribution: 'temurin'
+                java-version: '21'
+
+            - name: Google Auth PROD
+              id: auth
+              uses: 'google-github-actions/auth@v2'
+              with:
+                token_format: 'access_token'
+                project_id: ${{ secrets.GCP_PROJECT_ID_PROD }}
+                workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_PROD }}
+                service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_PROD }}
+                create_credentials_file: true
+
+            - name: Install Maven from Artifact Registry PROD
+              run: |
+                MAVEN_VERSION=3.9.9
+                TOKEN=$(gcloud auth print-access-token)
+
+                curl -L \
+                  -H "Authorization: Bearer $TOKEN" \
+                  -o /tmp/maven.zip \
+                  "https://us-maven.pkg.dev/sit-cicd-images-base/liverpool-maven-proxy-images-base/org/apache/maven/apache-maven/${MAVEN_VERSION}/apache-maven-${MAVEN_VERSION}-bin.zip"
+
+                sudo unzip /tmp/maven.zip -d /opt
+                sudo ln -s /opt/apache-maven-${MAVEN_VERSION}/bin/mvn /usr/local/bin/mvn
+
+                mvn -version
+
+
+            - name: Set Maven settings PROD
+              run: |
+                export MAVEN_AUTH_TOKEN=$(gcloud auth print-access-token)
+                          
+                cat <<EOF > settings.xml
+                <settings>
+                  <mirrors>
+                    <mirror>
+                      <id>liverpool-maven-proxy</id>
+                      <name>Maven Proxy</name>
+                      <url>https://us-maven.pkg.dev/sit-cicd-images-base/liverpool-maven-proxy-images-base/</url>
+                      <mirrorOf>central</mirrorOf>
+                    </mirror>
+                  </mirrors>
+                          
+                  <servers>
+                    <server>
+                      <id>liverpool-maven-proxy</id>
+                      <username>oauth2accesstoken</username>
+                      <password>${MAVEN_AUTH_TOKEN}</password>
+                    </server>
+                    <server>
+                      <id>artifact-registry</id>
+                      <username>oauth2accesstoken</username>
+                      <password>${MAVEN_AUTH_TOKEN}</password>
+                    </server>
+                  </servers>
+                </settings>
+                EOF
+
+            - name: Build JAR PROD
+              run: |
+                mvn clean install -Dmaven.test.skip=true \
+                  -s settings.xml
+  
+            - name: Docker Auth PROD
+              run: |-
+                echo ${{steps.auth.outputs.access_token}} | docker login -u oauth2accesstoken --password-stdin https://${{ env.IMG_GAR_LOCATION }}-docker.pkg.dev
+          
+            - name: Build Docker Image PROD
+              run: |-
+                docker build --build-arg ENVIRONMENT=prod --build-arg APP_VERSION=${{ github.ref_name }} -t "${{ env.IMG_GAR_LOCATION }}-docker.pkg.dev/${{ env.IMG_PROJECT_ID }}/${{ env.IMG_REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}" .
+
+            - name: Push Docker Image PROD
+              run: |-
+                docker push "${{ env.IMG_GAR_LOCATION }}-docker.pkg.dev/${{ env.IMG_PROJECT_ID }}/${{ env.IMG_REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}"
+          
+            - name: Set up Cloud SDK PROD
+              uses: 'google-github-actions/setup-gcloud@v2'
+              with:
+                version: '>= 416.0.0'
+                project_id: ${{ secrets.GCP_PROJECT_ID_PROD }}
+
+            - name: Deploy to Cloud Run PROD
+              id: deploy
+              uses: google-github-actions/deploy-cloudrun@v2
+              with:
+                service: ${{ env.SERVICE }}
+                region: ${{ env.SERVICE_REGION }}
+                project_id: ${{ env.CLOUD_RUN_PROJECT }}
+                image: ${{ env.IMG_GAR_LOCATION }}-docker.pkg.dev/${{ env.IMG_PROJECT_ID }}/${{ env.IMG_REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}
+                flags: '--service-account=${{ secrets.GCP_SERVICE_ACCOUNT_PROD }} --ingress=${{ env.INGRESS }} --cpu=${{ env.CPU }} --memory=${{ env.MEMORY }} --vpc-connector=${{ secrets.VPC_CONNECTOR_PROD}} --vpc-egress=all-traffic --no-default-url --allow-unauthenticated'
+                revision_traffic: 'LATEST=100'
+
+            - name: Google Chat Notification PROD
+              uses: Co-qn/google-chat-notification@releases/v1
+              with:
+                name: Glam-Frontend-PROD
+                url: ${{ secrets.GOOGLE_CHAT_CLP_BLP_SERVICE }}
+                status: ${{ job.status }}
+              if: always()
+
+            - name: Google Chat Notification PROD
+              uses: Co-qn/google-chat-notification@releases/v1
+              with:
+                name: Glam-Frontend-PROD  
+                url: ${{ secrets.GOOGLE_CHAT_RELEASE }}
+                status: ${{ job.status }}
+              if: ${{ failure() }}

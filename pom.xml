@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>4.1.0</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>com.liverpool</groupId>
+	<artifactId>ms-clp-blp</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name/>
+	<description/>
+	<url/>
+	<licenses>
+		<license/>
+	</licenses>
+	<developers>
+		<developer/>
+	</developers>
+	<scm>
+		<connection/>
+		<developerConnection/>
+		<tag/>
+		<url/>
+	</scm>
+	<properties>
+		<java.version>21</java.version>
+		<!-- Spring Cloud 2025.1.2 is built and tested by Broadcom against Spring Boot 4.0.7, while this
+		     project runs 4.1.0. That is deliberate and verified rather than assumed: every Spring Boot
+		     API referenced by spring-cloud-openfeign-core, spring-cloud-commons and spring-cloud-context
+		     (148 class references in total) resolves against the Boot 4.1.0 jars, and the OpenFeign
+		     starter pins spring-web 7.0.8 — the exact Spring Framework version Boot 4.1.0 ships, which
+		     is what rules out binary incompatibility. openfeign 4.x is NOT an option here: its
+		     SpringDecoder/FeignClientsConfiguration compile against
+		     org.springframework.boot.autoconfigure.http.HttpMessageConverters, removed in Boot 4.
+		     Re-check this pairing on any Spring Boot upgrade. -->
+		<spring-cloud.version>2025.1.2</spring-cloud.version>
+		<resilience4j.version>2.3.0</resilience4j.version>
+		<spotless.version>3.8.0</spotless.version>
+		<git-build-hook.version>3.6.0</git-build-hook.version>
+		<jacoco.version>0.8.15</jacoco.version>
+		<!-- Minimum line coverage enforced by jacoco:check (pre-push hook). -->
+		<jacoco.line.minimum>0.85</jacoco.line.minimum>
+		<!-- Paired with the opentelemetry-javaagent version pinned in Dockerfile (2.31.1): the agent
+		     shades its own copy of the API and rewrites GlobalOpenTelemetry/Span.current() to return
+		     its real tracer, so this is a compile-time contract, not a second tracer. Keep in step with
+		     the Dockerfile's OTEL_AGENT_VERSION on every bump. -->
+		<opentelemetry.version>1.62.0</opentelemetry.version>
+	</properties>
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+	<dependencies>
+		<!-- No Micrometer Tracing bridge is declared, deliberately. Tracing is produced by the
+		     OpenTelemetry Java agent attached in the Dockerfile, which is the service's only tracer:
+		     it exports spans to Dynatrace AND injects trace_id/span_id/trace_flags into the MDC that
+		     GcpStructuredLogFormatter reads, so a Cloud Logging line joins its distributed trace.
+		     Adding a bridge (Brave or OTel) back would run a second, independent tracer in-process
+		     whose ids match nothing in Dynatrace — which is exactly the split this replaced. -->
+		<!-- API only, never the SDK: lets application code enrich the span the agent already created
+		     (Span.current().setAttribute(...)) without registering a second tracer. Without the agent
+		     attached (e.g. plain unit tests), these calls resolve to a no-op span. -->
+		<dependency>
+			<groupId>io.opentelemetry</groupId>
+			<artifactId>opentelemetry-api</artifactId>
+			<version>${opentelemetry.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.github.ben-manes.caffeine</groupId>
+			<artifactId>caffeine</artifactId>
+		</dependency>
+		<!-- Core Resilience4j used programmatically (no Spring-AOP starter): robust against the
+		     Spring Boot 4.x module layout and decoupled from framework version. -->
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-circuitbreaker</artifactId>
+			<version>${resilience4j.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-micrometer</artifactId>
+			<version>${resilience4j.version}</version>
+		</dependency>
+		<!-- Declarative HTTP clients. Every @FeignClient here targets an absolute url=, so there is no
+		     service discovery to support: spring-cloud-starter-loadbalancer is excluded to keep the
+		     auto-configuration surface (and the Cloud Run startup cost) minimal. -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-openfeign</artifactId>
+			<exclusions>
+				<exclusion>
+					<groupId>org.springframework.cloud</groupId>
+					<artifactId>spring-cloud-starter-loadbalancer</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<!-- Connection-pooled transport for every client EXCEPT shortcuts. -->
+		<dependency>
+			<groupId>io.github.openfeign</groupId>
+			<artifactId>feign-okhttp</artifactId>
+		</dependency>
+		<!-- feign.http2client.Http2Client wraps java.net.http.HttpClient, giving the shortcuts client
+		     the same JDK TLS fingerprint the old RestClient got from
+		     ClientHttpRequestFactoryBuilder.jdk(). Akamai Bot Manager 403s the Apache HttpClient 5
+		     fingerprint on the public edge — see ShortcutsFeignConfig. Do not drop this. -->
+		<dependency>
+			<groupId>io.github.openfeign</groupId>
+			<artifactId>feign-java11</artifactId>
+		</dependency>
+		<!-- Akamai's official EdgeGrid (EG1-HMAC-SHA256) request signer, used by
+		     AkamaiEdgeGridInterceptor to authenticate Fast Purge v3 calls. Only the core module: the
+		     bindings Akamai publishes cover Apache HttpClient, Google HTTP Client, Async HTTP Client
+		     and REST-assured — none of which this project uses — so the signature is applied to
+		     Feign's RequestTemplate directly. Hand-rolling the algorithm was the alternative and was
+		     rejected: a signing bug surfaces only as an opaque 403 from the edge. -->
+		<dependency>
+			<groupId>com.akamai.edgegrid</groupId>
+			<artifactId>edgegrid-signer-core</artifactId>
+			<version>6.0.5</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc</artifactId>
+		</dependency>
+		<!-- Per-brand feature-flag store. Declared directly rather than inherited from
+		     platform-commons (still excluded below): commons was built against Boot 3.4.5 and its
+		     MongoConfig/MongoDocumentService sit in com.liverpool.*, which MsClpBlpApplication may not
+		     component-scan. The health indicator this starter auto-configures is turned off in
+		     application.yaml — an unreachable Mongo must degrade the flags to their YAML values, never
+		     take the instance out of Cloud Run's rotation. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-mongodb</artifactId>
+		</dependency>
+
+		<!-- OpenAPI 3.1 spec + Swagger UI (Rule 8.1). The v3 line (3.x) is the one built against
+		     Spring Framework 7 / Spring Boot 4; the 2.x line targets Boot 3 and will not load here.
+		     platform-commons still ships a Boot 3.x springdoc-openapi-starter-common on its transitive
+		     path, which stays excluded (see the platform-commons <exclusions> below) so only this 3.x
+		     starter's own common jar is on the classpath. -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>3.1.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.tngtech.archunit</groupId>
+			<artifactId>archunit-junit5</artifactId>
+			<version>1.4.1</version>
+			<scope>test</scope>
+		</dependency>
+		<!-- Feign clients cannot be exercised with MockRestServiceServer, which binds to a
+		     RestClient.Builder. WireMock serves the stubs over a real socket instead, which is also the
+		     only way to assert on what actually goes on the wire — the SessionId percent-encoding
+		     contract in AuthClientWireTest depends on inspecting the raw query string. The standalone
+		     (shaded) artifact is used so WireMock's Jetty does not collide with the app's. -->
+		<dependency>
+			<groupId>org.wiremock</groupId>
+			<artifactId>wiremock-standalone</artifactId>
+			<version>3.13.2</version>
+			<scope>test</scope>
+		</dependency>
+		<!-- In-memory SDK to build a real recording Span in tests for OutboundSpanEnrichingInterceptor —
+		     test-scope only, never ships in the runtime jar, so production still has exactly one
+		     tracer (the javaagent). -->
+		<dependency>
+			<groupId>io.opentelemetry</groupId>
+			<artifactId>opentelemetry-sdk-testing</artifactId>
+			<version>${opentelemetry.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<!-- Reused for its Jewel wire-contract DTOs (com.liverpool.dto.jewel.*), ApiJewelConfig, and
+		     JewelFeignConfig — which brings the JewelConnectionResetListener pool-eviction valve proven
+		     in ms_plp_search production — rather than duplicating any of it.
+
+		     Built against Spring Boot 3.4.5. Its own spring-cloud-starter-openfeign (4.3.0) stays
+		     excluded: this project runs openfeign 5.0.2, and 4.x cannot load on Boot 4 at all (see the
+		     spring-cloud.version comment above). The classes actually consumed are safe across that
+		     gap — the Jewel Feign classes carry no Spring Boot references, and @FeignClient's attribute
+		     surface is identical between 4.3.0 and 5.0.2 — so they bind against our newer Feign. The
+		     remaining exclusions keep Boot 3.x auto-configuration off the classpath. -->
+		<dependency>
+			<groupId>com.liverpool</groupId>
+			<artifactId>platform-commons</artifactId>
+			<version>1.0.1</version>
+			<exclusions>
+				<exclusion>
+					<groupId>org.springframework.cloud</groupId>
+					<artifactId>spring-cloud-starter-openfeign</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter-web</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.springdoc</groupId>
+					<artifactId>springdoc-openapi-starter-common</artifactId>
+				</exclusion>
+				<!-- Not used by the Jewel DTOs; would otherwise add an unconfigured Mongo health
+				     indicator (Cloud Run readiness impact) and re-introduce the Spring-AOP
+				     resilience4j starter this project deliberately avoids (see the
+				     "Core Resilience4j used programmatically" comment on the resilience4j-circuitbreaker
+				     dependency above). -->
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter-data-mongodb</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>io.github.resilience4j</groupId>
+					<artifactId>resilience4j-spring-boot3</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+	</dependencies>
+
+	<repositories>
+		<repository>
+			<id>artifact-registry</id>
+			<url>https://us-east4-maven.pkg.dev/sit-cicd-images-apps/liverpool-platform-commons-libraries</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</repository>
+	</repositories>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+			<!-- Points git's core.hooksPath at .githooks/ on every build (initialize phase),
+			     so the pre-commit/commit-msg/pre-push hooks self-install with no manual step. -->
+			<plugin>
+				<groupId>com.rudikershaw.gitbuildhook</groupId>
+				<artifactId>git-build-hook-maven-plugin</artifactId>
+				<version>${git-build-hook.version}</version>
+				<configuration>
+					<gitConfig>
+						<core.hooksPath>.githooks/</core.hooksPath>
+						<commit.template>.gitmessage</commit.template>
+					</gitConfig>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>configure</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<!-- Whitespace/import hygiene only (see docs in README "Development workflow").
+			     removeUnusedImports uses the cleanthat engine, NOT the google-java-format
+			     default, so no add-exports JVM flags / .mvn/jvm.config are needed on JDK 21.
+			     No indent step: the repo indents with tabs and we intentionally do not reformat. -->
+			<plugin>
+				<groupId>com.diffplug.spotless</groupId>
+				<artifactId>spotless-maven-plugin</artifactId>
+				<version>${spotless.version}</version>
+				<configuration>
+					<java>
+						<toggleOffOn/>
+						<removeUnusedImports>
+							<engine>cleanthat-javaparser-unnecessaryimport</engine>
+						</removeUnusedImports>
+						<importOrder>
+							<order>java|javax|jakarta,org,com,,\#</order>
+						</importOrder>
+						<trimTrailingWhitespace/>
+						<endWithNewline/>
+					</java>
+				</configuration>
+				<executions>
+					<execution>
+						<id>spotless-check</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>${jacoco.version}</version>
+				<configuration>
+					<excludes>
+						<exclude>**/MsClpBlpApplication.class</exclude>
+					</excludes>
+				</configuration>
+				<executions>
+					<execution>
+						<id>prepare-agent</id>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>report</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>check-coverage</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+						<configuration>
+							<rules>
+								<rule>
+									<element>BUNDLE</element>
+									<limits>
+										<limit>
+											<counter>LINE</counter>
+											<value>COVEREDRATIO</value>
+											<minimum>${jacoco.line.minimum}</minimum>
+										</limit>
+									</limits>
+								</rule>
+							</rules>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>default-compile</id>
+						<phase>compile</phase>
+						<goals>
+							<goal>compile</goal>
+						</goals>
+						<configuration>
+							<annotationProcessorPaths>
+								<path>
+									<groupId>org.projectlombok</groupId>
+									<artifactId>lombok</artifactId>
+								</path>
+							</annotationProcessorPaths>
+						</configuration>
+					</execution>
+					<execution>
+						<id>default-testCompile</id>
+						<phase>test-compile</phase>
+						<goals>
+							<goal>testCompile</goal>
+						</goals>
+						<configuration>
+							<annotationProcessorPaths>
+								<path>
+									<groupId>org.projectlombok</groupId>
+									<artifactId>lombok</artifactId>
+								</path>
+							</annotationProcessorPaths>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

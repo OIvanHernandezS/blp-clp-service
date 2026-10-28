@@ -1,0 +1,21 @@
+# <type>(<scope>): <subject>            <-- max ~72 chars; scope is optional
+#
+# Body: what & why (not how). Wrap at ~72. Blank line above.
+#
+# Footer: BREAKING CHANGE: ..., or issue refs like "Refs: JIRA-123".
+#
+# ── Conventional Commits (enforced by .githooks/commit-msg) ─────────────────
+# type:  feat     new feature
+#        fix      bug fix
+#        docs     documentation only
+#        style    formatting / whitespace (no code change)
+#        refactor code change that neither fixes a bug nor adds a feature
+#        perf     performance improvement
+#        test     adding or fixing tests
+#        build    build system, dependencies, pom.xml
+#        ci       CI configuration
+#        chore    tooling / housekeeping
+#        revert   reverts a previous commit
+#
+# Add "!" after type/scope for a breaking change, e.g.  feat(home)!: ...
+# ────────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,248 @@
+{
+  "campaignResponses": [
+    {
+      "campaignName": "LIV_ECM_SXP_PORQUE_VISTE",
+      "payload": {
+        "title": "Descubre más de lo que viste",
+        "productToShow": [
+          {
+            "id": "1186186914",
+            "categories": [
+              "CAT5150041",
+              "CAT5150023",
+              "CAT5150024"
+            ],
+            "dimensions": {
+              "Brand": [
+                "APPLE"
+              ],
+              "Seccion": [
+                "632"
+              ]
+            },
+            "attributes": {
+              "name": {
+                "value": "iPhone 17 Pro 6.3 pulgadas Super Retina XDR"
+              },
+              "price": {
+                "value": 29998
+              },
+              "listPrice": {
+                "value": 28498.1
+              },
+              "maxListPrice": {
+                "value": "40525"
+              },
+              "maxPromoPrice": {
+                "value": "38498.75"
+              },
+              "imageUrl": {
+                "value": "https://sp632.liverpool.com.mx/i/1186094391_4p.jpg"
+              },
+              "rating": {
+                "value": 0
+              }
+            }
+          },
+          {
+            "id": "1047168492",
+            "categories": [
+              "CATST8233783",
+              "CATST8862267",
+              "CATST8862740"
+            ],
+            "dimensions": {
+              "Brand": [
+                "CASAGORA"
+              ],
+              "Seccion": [
+                "356"
+              ]
+            },
+            "attributes": {
+              "name": {
+                "value": "Duvet con relleno Infinite Stripe"
+              },
+              "price": {
+                "value": 5799
+              },
+              "listPrice": {
+                "value": 2899.5
+              },
+              "maxListPrice": {
+                "value": "7499"
+              },
+              "maxPromoPrice": {
+                "value": "3749.5"
+              },
+              "imageUrl": {
+                "value": "https://ss356.liverpool.com.mx/xl/1047168492.jpg"
+              },
+              "rating": {
+                "value": 0
+              }
+            }
+          },
+          {
+            "id": "1182043370",
+            "categories": [
+              "CATST8233783",
+              "CATST8862267",
+              "CATST8862759"
+            ],
+            "dimensions": {
+              "Brand": [
+                "N NARRATIVE"
+              ],
+              "Seccion": [
+                "356"
+              ]
+            },
+            "attributes": {
+              "name": {
+                "value": "Cojín decorativo"
+              },
+              "price": {
+                "value": 669
+              },
+              "listPrice": {
+                "value": 434.85
+              },
+              "maxListPrice": {
+                "value": "799"
+              },
+              "maxPromoPrice": {
+                "value": "519.35"
+              },
+              "imageUrl": {
+                "value": "https://sp356.liverpool.com.mx/i/1180637300.jpg"
+              },
+              "rating": {
+                "value": 0
+              }
+            }
+          }
+        ],
+        "products": [
+          {
+            "id": "1186186914",
+            "categories": [
+              "CAT5150041",
+              "CAT5150023",
+              "CAT5150024"
+            ],
+            "dimensions": {
+              "Brand": [
+                "APPLE"
+              ],
+              "Seccion": [
+                "632"
+              ]
+            },
+            "attributes": {
+              "name": {
+                "value": "iPhone 17 Pro 6.3 pulgadas Super Retina XDR"
+              },
+              "price": {
+                "value": 29998
+              },
+              "listPrice": {
+                "value": 28498.1
+              },
+              "maxListPrice": {
+                "value": "40525"
+              },
+              "maxPromoPrice": {
+                "value": "38498.75"
+              },
+              "imageUrl": {
+                "value": "https://sp632.liverpool.com.mx/i/1186094391_4p.jpg"
+              },
+              "rating": {
+                "value": 0
+              }
+            }
+          },
+          {
+            "id": "1047168492",
+            "categories": [
+              "CATST8233783",
+              "CATST8862267",
+              "CATST8862740"
+            ],
+            "dimensions": {
+              "Brand": [
+                "CASAGORA"
+              ],
+              "Seccion": [
+                "356"
+              ]
+            },
+            "attributes": {
+              "name": {
+                "value": "Duvet con relleno Infinite Stripe"
+              },
+              "price": {
+                "value": 5799
+              },
+              "listPrice": {
+                "value": 2899.5
+              },
+              "maxListPrice": {
+                "value": "7499"
+              },
+              "maxPromoPrice": {
+                "value": "3749.5"
+              },
+              "imageUrl": {
+                "value": "https://ss356.liverpool.com.mx/xl/1047168492.jpg"
+              },
+              "rating": {
+                "value": 0
+              }
+            }
+          },
+          {
+            "id": "1182043370",
+            "categories": [
+              "CATST8233783",
+              "CATST8862267",
+              "CATST8862759"
+            ],
+            "dimensions": {
+              "Brand": [
+                "N NARRATIVE"
+              ],
+              "Seccion": [
+                "356"
+              ]
+            },
+            "attributes": {
+              "name": {
+                "value": "Cojín decorativo"
+              },
+              "price": {
+                "value": 669
+              },
+              "listPrice": {
+                "value": 434.85
+              },
+              "maxListPrice": {
+                "value": "799"
+              },
+              "maxPromoPrice": {
+                "value": "519.35"
+              },
+              "imageUrl": {
+                "value": "https://sp356.liverpool.com.mx/i/1180637300.jpg"
+              },
+              "rating": {
+                "value": 0
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

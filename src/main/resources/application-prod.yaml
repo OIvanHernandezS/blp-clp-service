@@ -1,0 +1,15 @@
+# PROD profile — security hardened, minimal surface.
+
+logging:
+  level:
+    com.liverpool.ms_clp_blp: ${LOG_LEVEL_APP:INFO}
+# Rule 8.1 — Swagger UI only in non-production.
+springdoc:
+  swagger-ui:
+    enabled: false
+# Security — do not expose loggers/metrics openly in prod (restrict via platform network policy / auth).
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

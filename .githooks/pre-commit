@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+#
+# pre-commit: format staged Java files with Spotless (hygiene only) and re-stage them.
+# Scoped to staged files, so commit time stays flat as the repo grows.
+#
+# Escape hatch: SKIP_HOOKS=1 git commit ...   (or git commit --no-verify)
+set -euo pipefail
+
+if [ -n "${SKIP_HOOKS:-}" ]; then
+	echo "pre-commit: skipped (SKIP_HOOKS set)"
+	exit 0
+fi
+
+RED=$'\033[0;31m'; YELLOW=$'\033[0;33m'; NC=$'\033[0m'
+
+# --- Guard: committing straight to main -------------------------------------
+# This service is shared and PR-based. Warn (do not block) so a deliberate local
+# commit is still possible, but the noise nudges people onto a branch.
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+if [ "$BRANCH" = "main" ]; then
+	echo "${YELLOW}pre-commit: you are committing directly to 'main'. Prefer a feature branch + PR.${NC}"
+fi
+
+# --- Guard: secrets ---------------------------------------------------------
+# .env is real (see .env.example). Never let a real dotenv file into a commit.
+SECRETS=$(git diff --cached --name-only --diff-filter=ACMR \
+	| grep -E '(^|/)\.env($|\.)' | grep -v -E '(^|/)\.env\.example$' || true)
+if [ -n "$SECRETS" ]; then
+	echo "${RED}pre-commit: refusing to commit environment/secret files:${NC}"
+	echo "$SECRETS" | sed 's/^/    /'
+	echo "Remove them from the index (git restore --staged <file>) or add to .gitignore."
+	exit 1
+fi
+
+# --- Spotless on staged Java only -------------------------------------------
+STAGED_JAVA=$(git diff --cached --name-only --diff-filter=ACMR -- '*.java' || true)
+if [ -z "$STAGED_JAVA" ]; then
+	# No Java staged -> no JVM start. Docs/pom-only commits stay instant.
+	exit 0
+fi
+
+# Refuse partially-staged Java files. Spotless rewrites the working tree, so a
+# blind `git add` afterwards would sweep the file's unstaged half into the commit.
+UNSTAGED_JAVA=$(git diff --name-only --diff-filter=ACMR -- '*.java' || true)
+CLASH=$(comm -12 <(sort <<<"$STAGED_JAVA") <(sort <<<"$UNSTAGED_JAVA") || true)
+if [ -n "$CLASH" ]; then
+	echo "${RED}pre-commit: these Java files have both staged and unstaged changes:${NC}"
+	echo "$CLASH" | sed 's/^/    /'
+	echo "Spotless would reformat the whole file and re-stage it, pulling in the unstaged part."
+	echo "Stage the file fully (git add <file>) or stash the rest, then commit again."
+	exit 1
+fi
+
+# spotlessFiles matches String#matches against the ABSOLUTE path (full-string regex).
+# Quote each path literally with \Q..\E so dots and slashes are not treated as regex.
+ROOT=$(git rev-parse --show-toplevel)
+PATTERNS=$(sed "s|^|\\\\Q$ROOT/|; s|$|\\\\E|" <<<"$STAGED_JAVA" | paste -sd, -)
+
+echo "pre-commit: formatting $(wc -l <<<"$STAGED_JAVA" | tr -d ' ') staged Java file(s) with Spotless..."
+echo "            (first run on a fresh clone may download Maven/plugins — not a hang)"
+if ! ./mvnw -q spotless:apply -DspotlessFiles="$PATTERNS"; then
+	echo "${RED}pre-commit: spotless:apply failed.${NC}"
+	echo "If this is a dependency-resolution error, check your ~/.m2/settings.xml auth for the"
+	echo "private Artifact Registry (see README 'Development workflow' > Troubleshooting)."
+	exit 1
+fi
+
+# Re-stage. Safe: the clash guard above proved these files have no unstaged half.
+xargs git add -- <<<"$STAGED_JAVA"
+echo "pre-commit: done."

@@ -1,0 +1,541 @@
+spring:
+  application:
+    name: ms-clp-blp
+  # Rule 3.1 / Rule 4 — virtual threads for Spring MVC (Java 21 Loom).
+  threads:
+    virtual:
+      enabled: true
+  # LOG_FORMAT=pretty (local dev only) folds into the "pretty" Spring profile, which activates the
+  # on-profile document below. Empty/unset LOG_FORMAT includes no extra profile, so nothing changes.
+  profiles:
+    include: ${LOG_FORMAT:}
+
+# Rule 5 — graceful shutdown for Cloud Run.
+server:
+  shutdown: graceful
+  port: ${PORT:8080}
+  compression:
+    enabled: ${SERVER_COMPRESSION_ENABLED:true}
+    min-response-size: ${SERVER_COMPRESSION_MIN_RESPONSE_SIZE:2KB}
+    mime-types: ${SERVER_COMPRESSION_MIME_TYPES:application/json,application/problem+json}
+  # Tomcat's own default (8KB) is smaller than a real browser cookie jar — first-party analytics/
+  # tracking/bot-management cookies alone routinely exceed it. Over the limit, Tomcat answers 400
+  # itself, before the request reaches DispatcherServlet: no ProblemDetail, no line from
+  # GlobalExceptionHandler, nothing in this service's own logs (see Troubleshooting). Deprecated name
+  # is server.max-http-header-size; this is the replacement since Spring Boot 3.0.
+  max-http-request-header-size: ${MAX_HTTP_HEADER_SIZE:16KB}
+
+# Rule 11 + logger-handler — structured JSON logging, runtime-configurable levels.
+# GCP-native format (not Boot's built-in "ecs"): Cloud Run's log ingestion only classifies structured
+# JSON by a top-level "severity" key; ECS nests it under "log.level", so every line lands as GCP
+# severity DEFAULT and gets silently dropped by this project's cost-optimization log exclusion filter
+# (which excludes DEBUG/DEFAULT/INFO). See GcpStructuredLogFormatter for the field mapping.
+logging:
+  structured:
+    format:
+      console: com.liverpool.ms_clp_blp.shared.logging.GcpStructuredLogFormatter
+  level:
+    root: INFO
+    com.liverpool.ms_clp_blp: ${LOG_LEVEL_APP:INFO}
+  outbound:
+    # Full per-request Feign trace (method, URL, every header, request and response body), matching
+    # the shape ms_pdp_search emits. UNMASKED by design so a failing call can be reconstructed
+    # exactly — which means Authorization, Basic credentials, Cookie: SessionId and SessionId query
+    # values all reach the log pipeline while it is on. Leave unset in prod; enable for a targeted
+    # incident and turn it back off. Off it still logs one line per call (Logger.Level.BASIC).
+    feign-enabled: ${FEIGN_LOG_ENABLED:false}
+    # provider:status pairs that are normal business answers, not failures, so the outbound logger
+    # does not report them at WARN: an expired SessionId answered 401/404 by auth is already reported as
+    # SESSION_DEGRADED_TO_GUEST by the adapter that understands it. A pair, never a provider alone —
+    # auth:500 is a real outage. A malformed entry is skipped, never fatal.
+    expected-failures: ${OUTBOUND_EXPECTED_FAILURES:auth:401,auth:404}
+
+---
+# LOG_FORMAT=pretty (local dev only) — human-readable console pattern instead of structured JSON.
+# Unsetting logging.structured.format.console falls back to Boot's plain
+# PatternLayoutEncoder driven by logging.pattern.console. Only activates when LOG_FORMAT=pretty is
+# included as the "pretty" profile (see spring.profiles.include above); absent in cloud, so the
+# unconditional ecs format above is what ships there by default. Colors come from Boot's %clr
+# conversion word (registered by its logback defaults.xml) and only ever reach a local console.
+spring:
+  config:
+    activate:
+      on-profile: pretty
+  # ANSI colors via Boot's %clr conversion word. DETECT (Boot's default) yields no color when stdout
+  # is not a TTY — e.g. IntelliJ's run window — so this path forces them on; LOG_COLOR=never strips
+  # the escape codes when piping the console to a file.
+  output:
+    ansi:
+      enabled: ${LOG_COLOR:always}
+logging:
+  structured:
+    format:
+      console: ""
+  pattern:
+    # Deliberately short. The four correlation ids this pattern used to print
+    # (traceId/spanId/correlationId/requestId, ~130 characters of hex before the message) exist to
+    # join lines in Cloud Logging, where the JSON format still carries all of them; on a laptop they
+    # pushed the actual message off the right-hand edge. What survives is the first 8 characters of
+    # requestId, which is enough to tell two concurrent requests apart locally.
+    # %kvp renders the fluent-API key-values (event, blockId, reason, elapsedMs…) that carry the
+    # meaning of a line; without it the console shows only the prose.
+    console: "%clr(%d{HH:mm:ss.SSS}){faint} %clr(%-5level){} %clr(%.-8X{requestId:-------}){faint} %clr([%X{operation:-}]){blue} %clr(%logger{28}){cyan} %clr(--){faint} %msg %clr(%kvp){faint}%n"
+  outbound:
+    # Local dev gets request/response bodies by default. This no longer controls whether the outbound
+    # trace is visible — the log level does (see FeignOutboundLogger); it only adds bodies to lines
+    # that are already being emitted.
+    feign-enabled: ${FEIGN_LOG_ENABLED:true}
+
+---
+# Rule 9 — observability. Actuator on a dedicated management port (default 8081) so it is never
+# reachable via the API gateway. K8s liveness/readiness probes target this port directly.
+# The main application port (8080) is the only gateway-exposed surface.
+management:
+  server:
+    port: ${MANAGEMENT_PORT:8081}
+  # No management.tracing.* here on purpose: tracing comes from the OpenTelemetry Java agent
+  # (see Dockerfile), not from the application. There is no Micrometer Tracing bridge on the
+  # classpath, so these keys would bind to nothing. Sampling is OTEL_TRACES_SAMPLER /
+  # OTEL_TRACES_SAMPLER_ARG on the Cloud Run service — and it now has a real cost, because unlike
+  # the previous Brave setup the spans are actually exported to Dynatrace.
+  endpoints:
+    web:
+      exposure:
+        include: health,info,loggers,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+    # A per-brand flag store that is down degrades flags to their YAML values — the service is still
+    # serving correct pages. Letting it fail readiness would take healthy instances out of Cloud Run's
+    # rotation for a dependency the request path is explicitly designed to survive without.
+    mongo:
+      enabled: false
+
+# CORS is fully open (any origin) — see SecurityConfig#corsConfigurationSource for the
+# allowedOriginPatterns("*") + allowCredentials(true) setup and its security implications.
+
+# Rule 6 — Contentstack content contract: which content types the landing endpoints read. No secrets in
+# code. Connection settings are NOT here — they live in content-stack-direct (transport) and
+# api.content-stack (credentials).
+cms:
+  default-brand: ${CMS_BRAND:LP}
+  # Landing pages are selected by category_id = the last segment of the storefront URL (digital_bff /
+  # content-service parity), never by url.
+  blp-content-type: ${CMS_BLP_TYPE:page_blp}
+  clp-content-type: ${CMS_CLP_TYPE:page_clp}
+  # The active redirect of a category ({source_category_id, is_active: true}) → categoryData.redirectContent.
+  redirect-content-type: ${CMS_CATEGORY_REDIRECT_TYPE:category_redirect}
+  # Per-instance Caffeine cache in front of Contentstack — the only cache in the path, so expire-after-
+  # write is also the worst-case delay before a CMS edit is visible. One entry per brand + locale + page
+  # type + category, which is why the ceiling is far above ms-home's single-page cache. Only found pages
+  # are cached: a 404 is asked again on the next request.
+  landing-cache:
+    enabled: ${CMS_LANDING_CACHE_ENABLED:true}
+    refresh-after-write: ${CMS_LANDING_CACHE_REFRESH:30s}
+    expire-after-write: ${CMS_LANDING_CACHE_EXPIRE:5m}
+    maximum-size: ${CMS_LANDING_CACHE_MAX_SIZE:2000}
+
+# Circuit breakers: 50% failure-rate threshold over a 50-call window, NO retries.
+# Consumed programmatically by Resilience4jConfig (core Resilience4j, not the Spring-AOP starter).
+resilience:
+  circuit-breaker:
+    failure-rate-threshold: ${CB_FAILURE_RATE_THRESHOLD:50}
+    sliding-window-size: ${CB_SLIDING_WINDOW_SIZE:50}
+    minimum-number-of-calls: ${CB_MIN_CALLS:20}
+    wait-duration-in-open-state: ${CB_WAIT_OPEN:30s}
+    permitted-calls-in-half-open-state: ${CB_HALF_OPEN_CALLS:20}
+
+# Per-brand feature flags (ADR-045). The overrides below are authored in Contentstack, pushed here by
+# webhook, stored in MongoDB and read by every instance with a short per-instance cache. Whatever a
+# brand does NOT override falls through to landing.feature-flags, so this block being unreachable — or
+# switched off — restores exactly the behaviour that shipped before it existed.
+brand-flags:
+  # Kill switch. false skips the store entirely: flags resolve from landing.feature-flags and no Mongo
+  # connection is ever attempted. Off in the dev profile so local development needs no database.
+  enabled: ${BRAND_FLAGS_ENABLED:true}
+  content-type: ${BRAND_FLAGS_CONTENT_TYPE:ms_clp_blp_flags}
+  # The flags are not localised, but a Contentstack entries query takes a locale, so one is fixed
+  # rather than guessed per request.
+  locale: ${BRAND_FLAGS_LOCALE:es-mx}
+  collection: ${BRAND_FLAGS_COLLECTION:ms_clp_blp_configuration}
+  # Also the worst-case propagation delay: the webhook only evicts the instance that received it, so
+  # every other instance is at most this stale. Lower it and you pay more reads, not more correctness.
+  cache-ttl: ${BRAND_FLAGS_CACHE_TTL:3m}
+  # Brands seeded with a landing.feature-flags.* snapshot at startup when they have no document yet (see
+  # BrandFlagsSeedRunnerAdapter).
+  seed-brands: ${LANDING_BRANDS:LP,SB,WE,WS,PB,PBK,DPS,FB,DCK,GAP,BR,TRU,BRU}
+  # Per-brand overrides applied when the store has nothing to say — the layer that keeps a Mongo
+  # outage from collapsing all thirteen brands onto the service-wide values above. One JSON object
+  # keyed <flag>_<BRAND>, e.g. {"vertex_LP": false, "jewel_GAP": false}. It is the
+  # EXCEPTION, not the rule: a brand that behaves like the rest appears nowhere, and any flag not
+  # named falls through to landing.feature-flags. Invalid JSON is logged and ignored, never fatal.
+  override-json: ${FF_OVERRIDE_JSON:}
+
+# MongoDB holding the per-brand flag documents, keyed <BRAND>_<PROFILE> (e.g. LP_QA) so one cluster
+# serves every environment. Timeouts are deliberately short: this read sits on the landing page path
+# when an instance's cache expires, and an unreachable Mongo must degrade to the YAML defaults in
+# seconds rather than hold the page. See clients/mongo/MongoConfig — Boot's own client is replaced.
+mongo:
+  # Secret — env only, never a committed default.
+  uri: ${MONGO_URI:}
+  socket-timeout: ${MONGO_SOCKET_TIMEOUT:2s}
+  server-selection-timeout: ${MONGO_SERVER_SELECTION_TIMEOUT:2s}
+  max-connection-idle-time: ${MONGO_MAX_CONNECTION_IDLE_TIME:60s}
+
+# Landing composition (Rule 18) — per-provider runtime enable/disable, no redeploy. Only the
+# products_list providers and the two carousel-wide behaviours exist: landing pages carry no other
+# dynamic block. Per brand, each can be overridden by brand-flags above.
+landing:
+  feature-flags:
+    # One flag per products_list provider, so any one can be switched off without touching the others
+    # (ADR-029). Off, the provider's carousels are advertised DISABLED and a direct
+    # POST …/blocks/products-list resolves them to nothing without calling the provider.
+    products-list-salesforce: ${FF_PRODUCTS_LIST_SALESFORCE:true}
+    products-list-salesforce-v2: ${FF_PRODUCTS_LIST_SALESFORCE_V2:true}
+    jewel: ${FF_JEWEL:true}
+    # Also serves legacy source_of_data: groupby, which digital_bff migrated to Vertex on page-blp/clp.
+    vertex: ${FF_VERTEX:true}
+    # A/B cohorts on products_list carousels (conditional_show_hide), same switch as commons'
+    # isConditionalShowHideEnabled. Off by default: every rule is ignored. On, a block with an active
+    # rule is never inlined (its cohort cannot be cached at the edge) and resolves per request instead.
+    conditional-show-hide: ${FF_CONDITIONAL_SHOW_HIDE:false}
+    # Removes blacklisted products (catalog-ingestion, see `blacklist` below) from every carousel —
+    # ms_pdp_search's isCarouselRestrictedProductEnabled. Fails open when the list cannot be read.
+    carousel-restricted-products: ${FF_CAROUSEL_RESTRICTED_PRODUCTS:true}
+  blocks:
+    # Resolution endpoint advertised by lazy products_list placeholders, one per page type. Every
+    # provider shares it; source_of_data tells them apart (ADR-029).
+    blp-products-list-endpoint: /blp/blocks/products-list
+    clp-products-list-endpoint: /clp/blocks/products-list
+  eager-resolution:
+    # Above-the-fold dynamic blocks (page-wide visible index < offset, counted across top_content,
+    # blocks and bottom_content) are resolved during the page request to avoid first-paint flickering;
+    # the rest are returned as lazy placeholders. A logged-in shopper's carousels may be personalised and
+    # resolve independently, so the default is 0 (everything lazy, the shell paints at once); a guest
+    # has nothing to personalise, so the default inlines the whole page in a single response — the
+    # digital_bff behaviour. Override per request with ?eagerOffset=N. 0 disables eager resolution.
+    logged-offset: ${LANDING_EAGER_OFFSET_LOGGED:0}
+    guest-offset: ${LANDING_EAGER_OFFSET_GUEST:100}
+
+# products_list resolution endpoint behaviour, shared by every provider.
+products-list:
+  # Cache-Control max-age emitted only when EVERY block in a response is session-independent (a Jewel
+  # model needing neither user nor device id, or a Vertex category search). This just lets the edge do
+  # its job. 300s matches
+  # digital_bff's JEWEL_CACHE_TTL. 0 falls back to the 300s default; personalised responses are no-store.
+  cache-seconds: ${PRODUCTS_LIST_CACHE_TTL:300}
+  # Most entries in each product's `images`, whichever provider backs the carousel. A brand overrides
+  # it by hand in MongoDB: settings.products-list-max-images in its <BRAND>_<PROFILE> document of
+  # brand-flags.collection, picked up within brand-flags.cache-ttl. 0 or negative means no limit.
+  max-images: ${PRODUCTS_LIST_MAX_IMAGES:1}
+
+# Akamai Fast Purge v3 — https://techdocs.akamai.com/purge-cache/reference/api
+#
+# There is NO username/password mode: Akamai authenticates API clients with EdgeGrid
+# (EG1-HMAC-SHA256), whose whole credential is the four values below. A basic-auth pair would be
+# rejected outright, which is why no AKAMAI_USERNAME/AKAMAI_PASSWORD exists here.
+#
+# AKAMAI_HOST feeds both the signature and the base URL, so it is declared once and reused: the host
+# that gets signed and the host actually dialled must agree or the edge answers 403. base-url keeps a
+# localhost default because Feign resolves url= eagerly at startup — a blank AKAMAI_HOST must still
+# let the context start, and CachePurgeUseCases then refuses the purge with CACHE_PURGE_NOT_CONFIGURED
+# before anything leaves the process.
+akamai:
+  host: ${AKAMAI_HOST:}
+  base-url: https://${AKAMAI_HOST:localhost}
+  # Secrets — env only, never a committed default.
+  client-token: ${AKAMAI_CLIENT_TOKEN:}
+  client-secret: ${AKAMAI_CLIENT_SECRET:}
+  access-token: ${AKAMAI_ACCESS_TOKEN:}
+  connect-timeout: ${AKAMAI_CONNECT_TIMEOUT:2s}
+  # A purge is accepted asynchronously, so this bounds the acknowledgement, not the purge itself.
+  read-timeout: ${AKAMAI_READ_TIMEOUT:10s}
+
+# What "purge ms-clp-blp" means, and the defaults an operator's query params override.
+# Nothing here is secret — the credential is under `akamai` above.
+cache-purge:
+  # Kill switch: off, POST /ops/cache-purge** answers 409 and no Akamai
+  # connection is attempted. Off in the dev profile so local development can never reach the live edge.
+  enabled: ${CACHE_PURGE_ENABLED:true}
+  # Fast Purge matches absolute URLs, not paths, so each path below is joined onto this origin. It is
+  # the host Akamai serves ms-clp-blp on — not www.liverpool.com.mx, whose CP code the purge credential
+  # is not authorised for (Akamai answers 403). TODO: confirm the host once the Akamai property exists.
+  site-base-url: ${CACHE_PURGE_SITE_BASE_URL:https://ms-crp-clp-blp-service.liverpool.com.mx}
+  # Empty by default: a landing page has one URL per category, so no fixed list can cover them — the
+  # cache tag below is what invalidates every landing page at once. Individual pages are purged with
+  # POST /ops/cache-purge/objects.
+  paths: ${CACHE_PURGE_PATHS:}
+  # Hosts POST /ops/cache-purge/objects may purge by absolute URL. Empty falls back to the host of
+  # site-base-url, never to "any host": the credential can reach other properties of the account.
+  allowed-hosts: ${CACHE_PURGE_ALLOWED_HOSTS:ms-crp-clp-blp-service.liverpool.com.mx}
+  # Edge-Cache-Tag values. Requires the edge property (or origin) to actually emit this header on
+  # ms-clp-blp responses — until it does, a tag purge is accepted by Akamai and matches nothing.
+  tags: ${CACHE_PURGE_TAGS:ms-clp-blp}
+  # invalidate = mark stale, edge revalidates with origin (safe default, no origin load spike).
+  # delete = evict outright. Overridable per call with ?action=.
+  action: ${CACHE_PURGE_ACTION:invalidate}
+  network: ${CACHE_PURGE_NETWORK:production}
+
+# Contentstack publishes that invalidate the edge on their own, via
+# POST /webhooks/contentstack/cache-purge. Runs exactly the purge that POST /ops/cache-purge runs
+# (configured paths + cache tags).
+# Gated by cache-purge.enabled above as well as by `enabled` here: off there, no purge happens by any
+# route, which is what keeps the dev profile away from the live edge.
+cms-purge-webhook:
+  enabled: ${CMS_PURGE_WEBHOOK_ENABLED:true}
+  # Content type uids whose publish makes the cached ms-clp-blp responses stale. A delivery about anything
+  # else is acknowledged and dropped — Contentstack retries every non-2xx, so it must not be an error.
+  content-types: ${CMS_PURGE_WEBHOOK_CONTENT_TYPES:page_blp,page_clp,products_list,category_redirect}
+  # Own keys rather than a reuse of cache-purge.action/network: those are the defaults an *operator*
+  # gets when they type neither query parameter, and someone rehearsing on staging must not thereby
+  # redirect every editor's publish there too.
+  action: ${CMS_PURGE_WEBHOOK_ACTION:invalidate}
+  network: ${CMS_PURGE_WEBHOOK_NETWORK:production}
+  # Publishing a template with many blocks delivers one webhook per entry. Deliveries arriving within
+  # this window of a submitted purge are reported as ignored, because that purge already covers them.
+  # 0s disables the collapsing. Per instance, so a fleet of N may still submit up to N.
+  cooldown: ${CMS_PURGE_WEBHOOK_COOLDOWN:10s}
+
+# Inbound HTTP Basic — the credential callers must present on every endpoint (SecurityConfig).
+# Same scheme ms_pdp_search and ms_plp_search enforce, so one platform credential can serve all three.
+# Not to be confused with vertex.username/password below, which is the credential ms-clp-blp sends OUT
+# to ms_plp_search.
+#
+# Secrets — env only, never a committed default (unlike ms_pdp_search, which ships literals in its
+# application.yml). Blank means the service does NOT start: an unauthenticated ms-clp-blp is reachable
+# from the internet (Cloud Run runs it with --allow-unauthenticated), so a failed deploy is the
+# cheaper outcome. Swagger and /v3/api-docs stay public; prod turns Swagger off entirely below.
+security:
+  basic:
+    username: ${MS_CLP_BLP_SECURITY_USERNAME:}
+    password: ${MS_CLP_BLP_SECURITY_PASSWORD:}
+
+springdoc:
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
+
+# Salesforce Evergage products_list carousels (Rule 19 reference: BFF SHARED_SALESFORCE_* env vars).
+#
+# Two property classes bind this prefix, by design (see SalesforceCarrouselsCommonsConfig):
+#   * ms-clp-blp's own SalesforceProperties reads `application` and `user-id-header`.
+#   * platform-commons' SalesForceConfig reads `salesforce.auth.*` only, and is what builds the
+#     Basic credentials for the carousels client. Shared with ms_plp_search and ms_pdp_search, which
+#     is what keeps one credential serving every service.
+salesforce:
+  application: ${SALESFORCE_APPLICATION:Web}
+  # Header carrying the ATG profile id that products_list sends as ID_ATG1 (ADR-041). Same header
+  # ms_plp_search and ms_pdp_search already send to this provider.
+  user-id-header: ${SALESFORCE_USER_ID_HEADER:x-sf-user-id}
+  # Basic credentials for the carousels client. The env var name is misspelled SALESFROCE upstream in
+  # platform-commons; it is matched here on purpose so one secret serves every service — do not "fix"
+  # it in isolation. Never committed: an unset value fails the call rather than sending an empty
+  # Authorization header, which is how carousels used to come back empty with no signal.
+  auth:
+    user: ${SALESFROCE_AUTH_USERNAME:}
+    pass: ${SALESFROCE_AUTH_PASSWORD:}
+
+# Salesforce Personalization (V2) identity headers, passed through as-is in parity with commons'
+# ProductsListSalesforceV2Strategy: the user id wins, the device id is the fallback, and each block's
+# salesforce_v2_config decides which one it requires. No SessionId gate, unlike V1's ADR-041.
+salesforce-v2:
+  user-id-header: ${SALESFORCE_V2_USER_ID_HEADER:x-sf-user-id}
+  device-id-header: ${SALESFORCE_V2_DEVICE_ID_HEADER:x-sf-device-id}
+
+# ms_plp_search's Vertex AI category search (ADR-021). username/password must always be supplied via
+# VERTEX_USERNAME/VERTEX_PASSWORD env vars — never committed — matching ms_plp_search's
+# spring.security.user.name/.password Basic auth.
+vertex:
+  base-url: ${VERTEX_BASE_URL:http://localhost:8084/api}
+  search-path: ${VERTEX_SEARCH_PATH:/v2/search}
+  username: ${VERTEX_USERNAME:}
+  password: ${VERTEX_PASSWORD:}
+  timeout: ${VERTEX_TIMEOUT:4s}
+  # Used only when a block's own max_of_products is absent from the CMS.
+  default-page-size: ${VERTEX_DEFAULT_PAGE_SIZE:12}
+
+# Shared auth microservice (Rule 19 reference: BFF SHARED_AUTH_URL). ms-clp-blp exchanges the SessionId
+# cookie for the request's login/guest state + profile id (tenant web|app is derived from x-channel:
+# WEB/KIOSCO/POS -> web, APP -> app; a missing or unknown channel exchanges as web, as before v0.26).
+auth:
+  base-url: ${AUTH_BASE_URL:http://localhost:8085}
+  # WORKAROUND for an upstream defect: the auth service routes the exchange by the request's Host and
+  # ignores x-brand-id, so a non-LP brand asking on liverpool.com.mx is answered as if it were not that
+  # brand — and every one of its users is silently degraded to guest, because the adapter swallows the
+  # failure. A brand named here with a non-blank URL has its exchange re-targeted at that origin; a
+  # blank entry (the default in every environment) means base-url, i.e. today's behaviour. Values must
+  # be absolute and carry the same /auth-service path prefix as base-url. Brands match LANDING_BRANDS.
+  brand-base-urls:
+    LP: ${AUTH_BASE_URL_LP:}
+    SB: ${AUTH_BASE_URL_SB:}
+    WE: ${AUTH_BASE_URL_WE:}
+    WS: ${AUTH_BASE_URL_WS:}
+    PB: ${AUTH_BASE_URL_PB:}
+    PBK: ${AUTH_BASE_URL_PBK:}
+    DPS: ${AUTH_BASE_URL_DPS:}
+    FB: ${AUTH_BASE_URL_FB:}
+    DCK: ${AUTH_BASE_URL_DCK:}
+    GAP: ${AUTH_BASE_URL_GAP:}
+    BR: ${AUTH_BASE_URL_BR:}
+    TRU: ${AUTH_BASE_URL_TRU:}
+    BRU: ${AUTH_BASE_URL_BRU:}
+  # The caller picks the contract per request with x-auth-version (ported from digital_bff); absent or
+  # not listed in supported-versions -> default-version. {version} is filled per request by Feign.
+  # Releasing a new contract = adding it to AUTH_SUPPORTED_VERSIONS (an unpublished one answers 404).
+  exchange-token-path-template: ${AUTH_EXCHANGE_TOKEN_PATH_TEMPLATE:/v{version}/auth/exchange-token}
+  default-version: ${AUTH_DEFAULT_VERSION:2}
+  supported-versions: ${AUTH_SUPPORTED_VERSIONS:2,3}
+  session-cookie-name: ${AUTH_SESSION_COOKIE:SessionId}
+  connect-timeout: ${AUTH_CONNECT_TIMEOUT:2s}
+  read-timeout: ${AUTH_READ_TIMEOUT:4s}
+
+# Jewel recommendation engine (Rule 19 reference: BFF SHARED_JEWEL_* env vars). Connection settings
+# (base URL, per-brand integration ids, timeouts) are bound onto the reused `com.liverpool.config
+# .properties.ApiJewelConfig` (platform-commons) under the `api.jewel` prefix — same env vars already
+# running in ms_plp_search production — so the brand-resolution contract is never duplicated here.
+api:
+  jewel:
+    url: ${API_JEWEL_URL:}
+    lp-integration-id: ${API_JEWEL_LP_INTEGRATION_ID:}
+    sb-integration-id: ${API_JEWEL_SB_INTEGRATION_ID:}
+    ws-integration-id: ${API_JEWEL_WS_INTEGRATION_ID:}
+    we-integration-id: ${API_JEWEL_WE_INTEGRATION_ID:}
+    pb-integration-id: ${API_JEWEL_PB_INTEGRATION_ID:}
+    pbk-integration-id: ${API_JEWEL_PBK_INTEGRATION_ID:}
+    gap-integration-id: ${API_JEWEL_GAP_INTEGRATION_ID:}
+    br-integration-id: ${API_JEWEL_BR_INTEGRATION_ID:}
+    tru-integration-id: ${API_JEWEL_TRU_INTEGRATION_ID:}
+    bru-integration-id: ${API_JEWEL_BRU_INTEGRATION_ID:}
+    dps-integration-id: ${API_JEWEL_DPS_INTEGRATION_ID:}
+    fb-integration-id: ${API_JEWEL_FB_INTEGRATION_ID:}
+    connect-timeout-ms: ${API_JEWEL_CONNECT_TIMEOUT_MS:3000}
+    read-timeout-ms: ${API_JEWEL_READ_TIMEOUT_MS:4000}
+  # products_list Salesforce carousels endpoint, bound onto platform-commons'
+  # `ApiSalesforceCarrouselsConfig` — same env vars already running in ms_plp_search. Deliberately
+  # separate from `salesforce.base-url` above: the url here is the FULL endpoint (the Feign client
+  # declares no path), which is what commons' client and its transport tuning expect.
+  salesforce-carrousels:
+    url: ${SALESFORCE_CARROUSELS_URL:https://serviciosliverpoolsadecv.us-4.evergage.com/api2/authevent/liverpool}
+    connect-timeout-ms: ${SALESFORCE_CARROUSELS_CONNECT_TIMEOUT_MS:1500}
+    read-timeout-ms: ${SALESFORCE_CARROUSELS_READ_TIMEOUT_MS:3000}
+  # products_list Salesforce Personalization (V2) decisions API, bound onto platform-commons'
+  # `ApiSalesforceV2Config` — the client appends /personalization/decisions to this base url. Blank by
+  # default like api.jewel.url: every environment must set it before a salesforce_v2 carousel resolves.
+  salesforce-v2:
+    url: ${API_SALESFORCE_V2_URL:}
+    connect-timeout-ms: ${API_SALESFORCE_V2_CONNECT_TIMEOUT_MS:3000}
+    read-timeout-ms: ${API_SALESFORCE_V2_READ_TIMEOUT_MS:4000}
+  # Contentstack Delivery API, called DIRECTLY — the only CMS source (ADR-053). Bound onto platform-commons' `ContentStackProperties`, whose resolver maps a
+  # brand onto one of four stacks (LP, SB, MULTI1, MULTI2) via the `Sites` enum.
+  #
+  # These credentials mirror the content-service's own `PROVIDER_*` configuration: `access-token` here
+  # is what it calls `PROVIDER_<NAME>_DELIVERY_TOKEN` — the DELIVERY token, never a management token.
+  # Both it and `api-key` authorise reads of a whole stack, so they belong in Secret Manager.
+  #
+  # branch/environment: the stack-wide values are the default and the per-stack entries override them.
+  # The overrides are not decorative — the content-service does run stacks on different branches, and
+  # a branch that drifts from its configuration serves stale content silently, and only during an
+  # outage. Every serve logs the branch it used so that is greppable.
+  #
+  # Leaving a stack's credentials blank is safe at startup: that brand's landing pages answer 502
+  # CONTENT_SERVICE_UNAVAILABLE until they are set.
+  content-stack:
+    url: ${CONTENT_STACK_URL:https://gcp-na-cdn.contentstack.com}
+    branch: ${CONTENT_STACK_BRANCH:}
+    environment: ${CONTENT_STACK_ENV:}
+    brands:
+      LP:
+        api-key: ${CONTENT_STACK_LP_API_KEY:}
+        access-token: ${CONTENT_STACK_LP_DELIVERY_TOKEN:}
+        branch: ${CONTENT_STACK_LP_BRANCH:}
+        environment: ${CONTENT_STACK_LP_ENV:}
+      SB:
+        api-key: ${CONTENT_STACK_SB_API_KEY:}
+        access-token: ${CONTENT_STACK_SB_DELIVERY_TOKEN:}
+        branch: ${CONTENT_STACK_SB_BRANCH:}
+        environment: ${CONTENT_STACK_SB_ENV:}
+      # WE, WS, PB, PBK, DPS, FB, DCK share one stack; entries are told apart by taxonomies.brand.
+      MULTI1:
+        api-key: ${CONTENT_STACK_MULTI1_API_KEY:}
+        access-token: ${CONTENT_STACK_MULTI1_DELIVERY_TOKEN:}
+        branch: ${CONTENT_STACK_MULTI1_BRANCH:}
+        environment: ${CONTENT_STACK_MULTI1_ENV:}
+      # GAP, BR, TRU, BRU share one stack; same taxonomies.brand discrimination.
+      MULTI2:
+        api-key: ${CONTENT_STACK_MULTI2_API_KEY:}
+        access-token: ${CONTENT_STACK_MULTI2_DELIVERY_TOKEN:}
+        branch: ${CONTENT_STACK_MULTI2_BRANCH:}
+        environment: ${CONTENT_STACK_MULTI2_ENV:}
+
+# Transport for the Contentstack Delivery API calls (the credentials live in api.content-stack).
+content-stack-direct:
+  connect-timeout: ${CONTENT_STACK_DIRECT_CONNECT_TIMEOUT:2s}
+  # The ceiling on how long a landing page request waits for its entry (and for a category redirect).
+  call-timeout: ${CONTENT_STACK_DIRECT_CALL_TIMEOUT:4s}
+
+# ms-clp-blp-local Jewel block behaviour (not part of ApiJewelConfig): identity headers and the
+# min/max item-count fallback. The model itself, and whether it requires a user/device id, are always
+# authored per block in the CMS's jewel_model_config (ADR-024 sends the full block on every call), so
+# there is no service-level model/identity fallback to configure here (ADR-029).
+jewel:
+  user-id-header: ${JEWEL_USER_ID_HEADER:x-jml-user-id}
+  device-id-header: ${JEWEL_DEVICE_ID_HEADER:x-jml-device-id}
+  # Used only when a block's own min_of_products/max_of_products are absent from the CMS.
+  min-items: ${JEWEL_MIN_ITEMS:3}
+  max-items: ${JEWEL_MAX_ITEMS:15}
+  # Publishes Jewel's per-product item_variants. digital_bff's `jewel_carousel_item_variants` flag is
+  # on by default, so this matches it; set false to drop variants from the response.
+  include-item-variants: ${ENABLE_JEWEL_CAROUSEL_ITEM_VARIANTS:true}
+
+# Category-tree indexer — the source of categoryData (Rule 19 reference: BFF SHARED_CATEGORY_INDEXER_URL,
+# POST /search-category/{brand}/{categoryId} with an empty body). Best effort: an indexer outage serves
+# the page without categoryData. Successful answers are cached per brand + category for cache-ttl
+# (digital_bff cached them for a day); failures are not cached.
+category-indexer:
+  base-url: ${CATEGORY_INDEXER_URL:https://ogcp-apigke-site-d.liverpool.com.mx/category-tree-indexer/v1}
+  search-path: ${CATEGORY_INDEXER_SEARCH_PATH:/search-category}
+  timeout: ${CATEGORY_INDEXER_TIMEOUT:2s}
+  cache-ttl: ${CATEGORY_INDEXER_CACHE_TTL:24h}
+  cache-max-size: ${CATEGORY_INDEXER_CACHE_MAX_SIZE:5000}
+
+# store-service — resolves the favoriteStore cookie into the selected_store.* analytics values
+# (Rule 19 reference: BFF SHARED_STORE_SERVICE_URL, GET /brands/{brand}/stores/{storeId}). Best effort;
+# cached per brand + store for cache-ttl (a day, like digital_bff).
+store-service:
+  base-url: ${STORE_SERVICE_URL:https://ogcp-apigke-site-d.liverpool.com.mx/store-service/v1}
+  timeout: ${STORE_SERVICE_TIMEOUT:2s}
+  cache-ttl: ${STORE_SERVICE_CACHE_TTL:24h}
+  cache-max-size: ${STORE_SERVICE_CACHE_MAX_SIZE:2000}
+
+# Product blacklist removed from every carousel (landing.feature-flags.carousel-restricted-products).
+# catalog-ingestion-service, the replacement of the deprecated search-facade blacklist — the same
+# endpoint platform-commons / ms_pdp_search target on feat/AHDV-401:
+#   GET {base-url}{path}/{site}?limit={limit}  →  { "products": ["1234", ...] }
+# The list is keyed by platform-commons' BrandSite enum NAME, mapped from x-brand-id below. limit -1 asks
+# for the whole list, as carousels need. Fails open; read once per site per cache-ttl (ms_pdp_search: 10m).
+blacklist:
+  base-url: ${BLACKLIST_BASE_URL:https://ogcp-apigke-site-d.liverpool.com.mx}
+  path: ${BLACKLIST_PATH:/catalog-ingestion-service/v1/blacklist}
+  limit: ${BLACKLIST_LIMIT:-1}
+  timeout: ${BLACKLIST_TIMEOUT:2s}
+  cache-ttl: ${BLACKLIST_CACHE_TTL:10m}
+  sites:
+    LP: LIVERPOOL
+    SB: SUBURBIA
+    WS: WILLIAMS_SONOMA
+    WE: WEST_ELM
+    PB: POTTERY_BARN
+    PBK: POTTERY_BARN_KIDS
+    GAP: GAP
+    BR: BANANA_REPUBLIC
+    TRU: TOYS_R_US
+    BRU: BABIES_R_US
+    DPS: DUPUIS
+    FB: FABLETICS
+    DCK: DOCKERS

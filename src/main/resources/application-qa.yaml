@@ -1,0 +1,8 @@
+# QA profile.
+
+logging:
+  level:
+    com.liverpool.ms_clp_blp: ${LOG_LEVEL_APP:INFO}
+springdoc:
+  swagger-ui:
+    enabled: true

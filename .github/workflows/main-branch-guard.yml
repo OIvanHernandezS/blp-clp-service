@@ -1,0 +1,40 @@
+name: Main branch guard
+
+# Rejects PRs into main unless they come from develop or a hotfix/* branch —
+# the two sanctioned promotion paths (regular releases via develop, urgent
+# patches via hotfix/*). Everything else (feat/*, task/*, epic branches, ...)
+# must land on develop first.
+#
+# NOTE: this only fails a check — a repo admin must additionally mark this
+# check as "required" in the main branch protection settings for it to
+# actually block merging.
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  guard:
+    runs-on:
+      group: digital-01
+    steps:
+      - name: Verify PR head is develop or a hotfix branch
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          if [[ "${HEAD_REF}" != "develop" && "${HEAD_REF}" != hotfix/* ]]; then
+            echo "::error::Direct merges into main are only allowed from develop or hotfix/* branches (got '${HEAD_REF}'). Land feature work via develop first."
+            exit 1
+          fi
+          echo "OK: '${HEAD_REF}' is an allowed source branch."

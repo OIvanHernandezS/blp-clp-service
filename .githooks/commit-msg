@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+#
+# commit-msg: enforce Conventional Commits on the subject line.
+# Pure shell — no Node toolchain in this Maven-only repo.
+#
+# Escape hatch: SKIP_HOOKS=1 git commit ...   (or git commit --no-verify)
+set -euo pipefail
+
+if [ -n "${SKIP_HOOKS:-}" ]; then
+	exit 0
+fi
+
+RED=$'\033[0;31m'; YELLOW=$'\033[0;33m'; NC=$'\033[0m'
+
+MSG_FILE="$1"
+# First non-empty, non-comment line = the subject.
+SUBJECT=$(grep -v '^#' "$MSG_FILE" | sed '/^[[:space:]]*$/d' | head -1 || true)
+
+# Exempt git's own generated subjects (merge/revert/rebase fixup & squash).
+if grep -qE '^(Merge |Revert |fixup! |squash! |amend! )' <<<"$SUBJECT"; then
+	exit 0
+fi
+
+TYPES='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
+# type(optional-scope)!: description
+PATTERN="^($TYPES)(\([a-z0-9._/-]+\))?!?: .+"
+
+if ! grep -qE "$PATTERN" <<<"$SUBJECT"; then
+	echo "${RED}commit-msg: subject does not follow Conventional Commits.${NC}"
+	echo ""
+	echo "  Got:      ${YELLOW}${SUBJECT:-<empty>}${NC}"
+	echo "  Expected: <type>[(scope)][!]: <description>"
+	echo ""
+	echo "  Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
+	echo ""
+	echo "  Examples:"
+	echo "    feat(home): add favorite-store block"
+	echo "    fix: guard null locale in GlobalDataMapper"
+	echo "    refactor!: drop deprecated /home/v0 endpoint   (! marks a breaking change)"
+	echo ""
+	echo "  Bypass for this commit: SKIP_HOOKS=1 git commit ...  (or --no-verify)"
+	exit 1
+fi
+
+# Soft nudge only — a long subject warns but never blocks.
+if [ "${#SUBJECT}" -gt 72 ]; then
+	echo "${YELLOW}commit-msg: subject is ${#SUBJECT} chars; aim for <=72 for readable logs.${NC}"
+fi

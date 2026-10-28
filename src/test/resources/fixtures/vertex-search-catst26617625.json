@@ -1,0 +1,49 @@
+{
+ "meta": {
+  "status": "SUCCESS"
+ },
+ "data": {
+  "records": [
+   {
+    "productId": "1190634100",
+    "title": "Producto Estée Lauder 0",
+    "brand": "ESTEE LAUDER"
+   },
+   {
+    "productId": "1190634101",
+    "title": "Producto Estée Lauder 1",
+    "brand": "ESTEE LAUDER"
+   },
+   {
+    "productId": "1190634102",
+    "title": "Producto Estée Lauder 2",
+    "brand": "ESTEE LAUDER"
+   },
+   {
+    "productId": "1190634103",
+    "title": "Producto Estée Lauder 3",
+    "brand": "ESTEE LAUDER"
+   },
+   {
+    "productId": "1190634104",
+    "title": "Producto Estée Lauder 4",
+    "brand": "ESTEE LAUDER"
+   },
+   {
+    "productId": "1190634105",
+    "title": "Producto Estée Lauder 5",
+    "brand": "ESTEE LAUDER"
+   },
+   {
+    "productId": "1190634106",
+    "title": "Producto Estée Lauder 6",
+    "brand": "ESTEE LAUDER"
+   },
+   {
+    "productId": "1190634107",
+    "title": "Producto Estée Lauder 7",
+    "brand": "ESTEE LAUDER"
+   }
+  ]
+ }
+}

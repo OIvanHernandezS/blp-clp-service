@@ -1,0 +1,26 @@
+# Credenciales y destino para publicar docs/confluence/ en Confluence Cloud.
+# Copia este archivo a scripts/.env.confluence y rellena el token; el real nunca se
+# commitea (.gitignore + el hook de pre-commit lo rechazan).
+#
+#   cp scripts/.env.confluence.example scripts/.env.confluence
+#   scripts/publish_confluence.sh --dry-run
+#   scripts/publish_confluence.sh
+
+# --- Credenciales ---
+CONFLUENCE_BASE_URL=https://liverpooldigital.atlassian.net
+CONFLUENCE_EMAIL=correo@ejemplo.com
+# Token de API (NO la contraseña): id.atlassian.com/manage-profile/security/api-tokens
+CONFLUENCE_API_TOKEN=<TokenGeneradoAqui>
+
+# --- Destino: espacio de ms-clp-blp. TODO: el espacio aún no existe; completa al crearlo. ---
+# La CLAVE del espacio, no su nombre: /wiki/spaces/<CLAVE>
+CONFLUENCE_SPACE=TODO_CLP_BLP_SPACE
+# Homepage del espacio. El árbol cuelga de ahí, que es la raíz visible del espacio. Además
+# activa la verificación previa del publicador: sin padre no puede distinguir nuestras
+# páginas de las ajenas y sobrescribiría cualquier título que coincida.
+CONFLUENCE_PARENT_ID=
+
+# Macro con la que se renderizan los diagramas mermaid de la documentación. Requiere la app
+# de Mermaid instalada en el sitio; si la página sale con "macro desconocida", cambia a
+# `code` y vuelve a correr el script (es idempotente, solo actualiza).
+MERMAID_MACRO=mermaid-cloud

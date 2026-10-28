@@ -1,0 +1,17 @@
+# DEV profile — local development convenience.
+
+logging:
+  level:
+    com.liverpool.ms_clp_blp: ${LOG_LEVEL_APP:DEBUG}
+springdoc:
+  swagger-ui:
+    enabled: true
+# Per-brand feature flags are off locally: they need MongoDB, and local development should not.
+# Flip BRAND_FLAGS_ENABLED=true (with MONGO_URI set) to exercise the real path.
+brand-flags:
+  enabled: ${BRAND_FLAGS_ENABLED:false}
+# Edge-cache purge is off locally for a sharper reason: it is the one operator action that reaches
+# outside this machine and changes what the public internet is served. A stray POST /ops/cache-purge
+# from a dev box should be a 409, not a production purge.
+cache-purge:
+  enabled: ${CACHE_PURGE_ENABLED:false}

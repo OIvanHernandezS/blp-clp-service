@@ -1,0 +1,22 @@
+# Dependencias de scripts/publish_confluence.py (publicación de docs/confluence/ en Confluence).
+#
+# scripts/publish_confluence.sh instala esto solo, en un virtualenv aparte (.venv-confluence/).
+# Solo hace falta instalarlo a mano si corres el .py directamente:
+#
+#   python3 -m venv .venv-confluence
+#   .venv-confluence/bin/pip install -r scripts/requirements.txt
+#
+# Mínimos, no versiones exactas: el publicador usa APIs estables de las tres y no hay
+# necesidad de reproducibilidad byte a byte para generar documentación.
+
+# Lee docs/confluence/confluence-manifest.yml (el árbol de páginas).
+PyYAML>=6.0
+
+# Convierte el Markdown de cada página a HTML antes de pasarlo a storage format.
+# Se usan las extensiones tables, fenced_code, sane_lists y attr_list, todas incluidas.
+Markdown>=3.5
+
+# CAs raíz para el handshake TLS con Atlassian. El Python de python.org no trae almacén de
+# certificados propio (a diferencia de curl, que usa el llavero de macOS) y sin esto urllib
+# falla con CERTIFICATE_VERIFY_FAILED.
+certifi>=2024.2.2

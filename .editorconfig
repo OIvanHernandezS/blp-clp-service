@@ -1,0 +1,25 @@
+# EditorConfig — IDE-level consistency that matches what Spotless enforces.
+# https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Java uses tabs in this repo (Spring Initializr default). Spotless does NOT
+# reindent, so keep tabs here to avoid IDEs fighting the existing style.
+[*.java]
+indent_style = tab
+indent_size = 4
+
+[*.{xml,yml,yaml,json}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab
