@@ -173,7 +173,8 @@ public class ProductsListVertexAdapter implements ProductsListPort {
                 .addKeyValue(LogFields.CATEGORY_PATH, categoryId)
                 .addKeyValue(LogFields.PRODUCT_COUNT, products.size())
                 .log("Vertex resolved the block");
-        return ProductsListResolution.available(blockId, null, null, products);
+        // productsListId is the searched category, as digital_bff's Vertex strategy publishes it.
+        return ProductsListResolution.available(blockId, null, categoryId, products);
     }
 
     private static boolean isBlank(String value) {

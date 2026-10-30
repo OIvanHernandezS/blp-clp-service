@@ -54,23 +54,6 @@ class ChannelTest {
     }
 
     @Test
-    void parse_isStrict_neverDefaultingAMissingOrUnknownChannel() {
-        assertThat(Channel.parse(null)).isEmpty();
-        assertThat(Channel.parse("")).isEmpty();
-        assertThat(Channel.parse("   ")).isEmpty();
-        assertThat(Channel.parse("APPS")).isEmpty();
-        assertThat(Channel.parse("android")).isEmpty();
-    }
-
-    @Test
-    void parse_definedChannels_matchCaseInsensitively() {
-        assertThat(Channel.parse("web")).contains(Channel.WEB);
-        assertThat(Channel.parse("APP")).contains(Channel.APP);
-        assertThat(Channel.parse("Kiosco")).contains(Channel.KIOSCO);
-        assertThat(Channel.parse(" POS ")).contains(Channel.POS);
-    }
-
-    @Test
     void isApp_trueOnlyForApp() {
         assertThat(Channel.APP.isApp()).isTrue();
         assertThat(Channel.WEB.isApp()).isFalse();

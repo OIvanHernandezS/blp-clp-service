@@ -49,10 +49,8 @@ import feign.Util;
  *
  * <h3>Not every non-2xx is a failure</h3>
  * <p>Some upstreams answer a perfectly normal question with a 4xx: cart-service says "this user has
- * no cart" with a 404 (ADR-059), auth-service rejects an expired session with a 401 or a 404. Those
- * are business answers, and the adapter that asked already reports them — as
- * {@code SESSION_DEGRADED_TO_GUEST}, for instance. Reporting them here too would log the same case
- * twice at WARN; {@link OutboundLoggingProperties#isExpected} is the list that stops that.</p>
+ * no cart" with a 404 (ADR-059). Those are business answers, and the adapter that asked already
+ * reports them. Reporting them here too would log the same case twice at WARN; {@link OutboundLoggingProperties#isExpected} is the list that stops that.</p>
  */
 public class FeignOutboundLogger extends feign.Logger {
 
@@ -106,9 +104,9 @@ public class FeignOutboundLogger extends feign.Logger {
 	protected Response logAndRebufferResponse(String configKey, Level logLevel, Response response,
 			long elapsedTime) throws IOException {
 		boolean succeeded = isSuccess(response.status());
-		// A non-2xx that the domain already treats as a normal answer: cart's "you have no cart",
-		// auth's "this session is no longer valid". Neither is a failure of anything, and the adapter
-		// that understands it already reports it — so this class says nothing at all about it.
+		// A non-2xx that the domain already treats as a normal answer, e.g. cart's "you have no cart".
+		// It is not a failure of anything, and the adapter that understands it already reports it —
+		// so this class says nothing at all about it.
 		boolean expected = !succeeded
 				&& properties.isExpected(upstreamOf(configKey), response.status());
 		// A failure's body is the diagnosis, so it is always read; a success's only when asked for.

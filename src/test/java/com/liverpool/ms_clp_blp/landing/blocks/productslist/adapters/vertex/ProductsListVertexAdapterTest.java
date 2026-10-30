@@ -150,6 +150,8 @@ class ProductsListVertexAdapterTest {
         assertThat(result.products()).hasSize(2);
         assertThat(result.products().get(0).getProductId()).isEqualTo("sku-1");
         assertThat(result.products().get(1).getProductId()).isEqualTo("sku-2");
+        // productsListId on the wire: the searched category, as digital_bff's Vertex strategy sets it.
+        assertThat(result.campaignName()).isEqualTo("cat-1");
     }
 
     @Test

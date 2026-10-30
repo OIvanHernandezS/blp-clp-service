@@ -886,7 +886,7 @@ class ProductsListUseCasesTest {
     }
 
     private static SessionContext sessionWith(CohortMarkers markers) {
-        return new SessionContext(true, "LP", "WEB", "es-mx", null, Map.of(), null, null, markers);
+        return new SessionContext(true, "LP", "WEB", "es-mx", Map.of(), null, markers);
     }
 
     private static CohortMarkers headerMarker(boolean inCohort) {

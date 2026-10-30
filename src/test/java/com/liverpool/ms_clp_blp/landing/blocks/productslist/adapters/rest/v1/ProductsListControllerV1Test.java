@@ -68,15 +68,15 @@ class ProductsListControllerV1Test {
     private static final String SESSION_ID = "f2207b1b-a5f4-47cd-b70a-fcf4072c2d04.c2ln";
 
     /**
-     * Every fixture here carries {@code authenticated=false} and {@code profileId=null} because this
-     * endpoint reads its context from {@code currentContextWithoutIdentity()} (ADR-054), which never
-     * performs the token exchange and so can never report a logged-in caller. What discriminates the
+     * Every fixture here carries {@code authenticated=false} because this endpoint reads its context
+     * from {@code currentContext()} (ADR-054), which is guest-shaped and never folds in
+     * {@code x-is-logged-in}. What discriminates the
      * cases below is the pair ADR-041 actually gates on: the presence of a well-formed {@code SessionId}
      * cookie (checked locally, no call) and the {@code x-sf-user-id} header that carries the profile id.
      */
     /** ADR-041's supported shape: a SessionId cookie travelled AND x-sf-user-id carries the id. */
     private static final SessionContext SESSION_AND_SF_HEADER = new SessionContext(
-            false, "LP", "WEB", "es-mx", null,
+            false, "LP", "WEB", "es-mx",
             Map.of("x-jml-user-id", "jml-1", "x-jml-device-id", "dev-1",
                     SF_USER_ID_HEADER, USER_ID),
             SESSION_ID);
@@ -85,10 +85,10 @@ class ProductsListControllerV1Test {
             new SessionContext(false, "LP", "WEB", "es-mx");
     /** Header present, no SessionId cookie — Salesforce V1 only serves logged-in shoppers. */
     private static final SessionContext NO_SESSION_ID = new SessionContext(
-            false, "LP", "WEB", "es-mx", null, Map.of(SF_USER_ID_HEADER, USER_ID), null);
+            false, "LP", "WEB", "es-mx", Map.of(SF_USER_ID_HEADER, USER_ID), null);
     /** SessionId present, header absent — there is no profile id to personalise on. */
     private static final SessionContext NO_SF_HEADER = new SessionContext(
-            false, "LP", "WEB", "es-mx", null, Map.of(), SESSION_ID);
+            false, "LP", "WEB", "es-mx", Map.of(), SESSION_ID);
 
     @Autowired
     private MockMvc mockMvc;
@@ -116,7 +116,7 @@ class ProductsListControllerV1Test {
 
     @BeforeEach
     void setUp() {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(SESSION_AND_SF_HEADER);
+        when(sessionContextPort.currentContext()).thenReturn(SESSION_AND_SF_HEADER);
         when(salesforceProperties.userIdHeader()).thenReturn(SF_USER_ID_HEADER);
         when(salesforceV2Properties.userIdHeader()).thenReturn(SF_USER_ID_HEADER);
         when(salesforceV2Properties.deviceIdHeader()).thenReturn(SF_DEVICE_ID_HEADER);
@@ -320,8 +320,8 @@ class ProductsListControllerV1Test {
 
     @Test
     void resolve_salesforceV2Block_buildsV2SettingsFromItsConfigAndHeaders() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(new SessionContext(
-                false, "LP", "WEB", "es-mx", null,
+        when(sessionContextPort.currentContext()).thenReturn(new SessionContext(
+                false, "LP", "WEB", "es-mx",
                 Map.of(SF_USER_ID_HEADER, USER_ID, SF_DEVICE_ID_HEADER, "sf-dev-1"), SESSION_ID));
         stubBatch(List.of(available(SF2_BLOCK, null)));
 
@@ -339,8 +339,8 @@ class ProductsListControllerV1Test {
     /** Parity with commons: V2 takes its identity from the headers alone, with no SessionId gate. */
     @Test
     void resolve_salesforceV2Block_withoutSessionId_stillForwardsTheHeaderIdentity() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(new SessionContext(
-                false, "LP", "WEB", "es-mx", null, Map.of(SF_DEVICE_ID_HEADER, "sf-dev-1"), null));
+        when(sessionContextPort.currentContext()).thenReturn(new SessionContext(
+                false, "LP", "WEB", "es-mx", Map.of(SF_DEVICE_ID_HEADER, "sf-dev-1"), null));
         stubBatch(List.of(available(SF2_BLOCK, null)));
 
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
@@ -368,7 +368,7 @@ class ProductsListControllerV1Test {
 
     @Test
     void resolve_noSessionAndNoHeader_forwardsNullAtgUserId() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(NO_SESSION_NO_HEADER);
+        when(sessionContextPort.currentContext()).thenReturn(NO_SESSION_NO_HEADER);
         stubBatch(List.of(ProductsListResolution.empty(SF_BLOCK, BlockDropReason.BELOW_MIN_PRODUCTS)));
 
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
@@ -387,7 +387,7 @@ class ProductsListControllerV1Test {
      */
     @Test
     void resolve_headerWithoutSessionId_forwardsNullAtgUserId_andStillAnswersTheBlock() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(NO_SESSION_ID);
+        when(sessionContextPort.currentContext()).thenReturn(NO_SESSION_ID);
         stubBatch(List.of(ProductsListResolution.empty(SF_BLOCK, BlockDropReason.BELOW_MIN_PRODUCTS)));
         when(productsListMapper.toBatchResponse(anyList())).thenCallRealMethod();
 
@@ -405,7 +405,7 @@ class ProductsListControllerV1Test {
     /** ADR-041, second condition: the header *is* the profile id, so its absence resolves nothing. */
     @Test
     void resolve_sessionWithoutSalesforceHeader_forwardsNullAtgUserId() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(NO_SF_HEADER);
+        when(sessionContextPort.currentContext()).thenReturn(NO_SF_HEADER);
         stubBatch(List.of(ProductsListResolution.empty(SF_BLOCK, BlockDropReason.BELOW_MIN_PRODUCTS)));
 
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)

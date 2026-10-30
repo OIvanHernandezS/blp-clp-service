@@ -52,7 +52,7 @@ com.liverpool.ms_clp_blp
 │   ├── blocks/   productslist (POST /blp|clp/blocks/products-list)
 │   └── brandflags/  per-brand flags (Contentstack webhook → Mongo → cache)
 ├── clients/      infra only — Feign clients per upstream (contentstackdirect, categoryindexer, store,
-│                 blacklist, vertex, salesforce, salesforcev2, jewel, auth, akamai, mongo) + resilience
+│                 blacklist, vertex, salesforce, salesforcev2, jewel, akamai, mongo) + resilience
 └── shared/       cross-cutting — errors, session, web/security, logging/MDC, constants, cache purge
 ```
 

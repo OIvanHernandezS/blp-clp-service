@@ -4,7 +4,7 @@ title: "Carruseles de productos"
 type: feature
 status: current
 owner: equipo-search-browse
-lastReviewed: 2026-10-27
+lastReviewed: 2026-10-29
 sources:
   - src/main/java/com/liverpool/ms_clp_blp/landing/blocks/productslist/
   - src/main/java/com/liverpool/ms_clp_blp/landing/adapters/blacklist/
@@ -65,7 +65,7 @@ flowchart LR
 | `source_of_data` | Lo que lee del bloque | Notas |
 |---|---|---|
 | `vertex` | `products_data.category`, `max_of_products` | Sin categoría no se llama (`MISSING_CATEGORY`) |
-| `groupby` | Igual que `vertex` | Alias de Vertex, como web-bff hacía en page-blp/clp |
+| `groupby` | Igual que `vertex` | Alias de Vertex, como web-bff en page-blp/clp; el bloque se publica con `source_of_data: vertex` (`ms_params` conserva `groupby`) |
 | `salesforce` (o vacío) | `salesforce_carousel`, `salesforce_category_id` | Requiere `x-sf-user-id` + cookie `SessionId`; para invitado se descarta |
 | `salesforce_v2` | `salesforce_v2_config` (`model`, `requires_*`) | Identidad por `x-sf-user-id` / `x-sf-device-id` |
 | `jewel` | `jewel_model_config` | Identidad por `x-jml-user-id` / `x-jml-device-id` |
@@ -95,6 +95,21 @@ flowchart LR
 `Cache-Control: public, max-age=<PRODUCTS_LIST_CACHE_TTL>` solo si todos los bloques son
 independientes de la sesión (Vertex, Jewel sin identidad); si no, `no-store`.
 
+## Productos de Vertex
+
+Mismo mapeo que `ProductDto.fromVertex` de web-bff (verificado con la prueba de paridad E2E):
+
+| Campo | Sale de |
+|---|---|
+| `productsListId` | `products_data.category` del bloque |
+| `categories` | `carrouselCategories` del registro (`id` + `label`); si no viene, el primer breadcrumb de `categories` |
+| `mainCategory` | `mainCategory` del registro, `""` si no viene. Solo Vertex lo publica |
+| `flags` | `featureFlags` del registro tal cual, `{}` si no viene. Solo Vertex lo publica |
+| `images` | Galería del primer color: la primera `largeImage`, el resto `thumbnailImage`, recortada a `PRODUCTS_LIST_MAX_IMAGES` |
+
+`sponsoredInfo` (Criteo/TopSort) se descarta al leer la respuesta: la clase `Criteo` de
+platform-commons no se puede deserializar y tumbaba la respuesta entera.
+
 ## Lista negra
 
 - Fuente: `GET {BLACKLIST_BASE_URL}/catalog-ingestion-service/v1/blacklist/{site}?limit=-1` →
@@ -116,7 +131,7 @@ independientes de la sesión (Vertex, Jewel sin identidad); si no, `no-store`.
 | `FF_CAROUSEL_RESTRICTED_PRODUCTS` | env / banderas por marca | `true` | Quita la lista negra |
 | `VERTEX_BASE_URL` / `VERTEX_SEARCH_PATH` | env | `http://localhost:8084/api` / `/v2/search` | ms_plp_search |
 | `VERTEX_USERNAME` / `VERTEX_PASSWORD` | Secret Manager | — | Basic hacia ms_plp_search |
-| `SALESFORCE_CARROUSELS_URL`, `SALESFROCE_AUTH_*` | env / Secret Manager | — | Salesforce Evergage |
+| `SALESFORCE_CARROUSELS_URL`, `SALESFORCE_AUTH_*` | env / Secret Manager | — | Salesforce Evergage |
 | `API_SALESFORCE_V2_URL` | env | — | Salesforce V2 |
 | `API_JEWEL_URL`, `API_JEWEL_*_INTEGRATION_ID` | env | — | JewelML |
 | `BLACKLIST_BASE_URL` / `BLACKLIST_PATH` / `BLACKLIST_CACHE_TTL` | env | site-d / `/catalog-ingestion-service/v1/blacklist` / `10m` | Lista negra |
@@ -147,6 +162,8 @@ Precedencia de banderas: documento por marca en Mongo → `FF_OVERRIDE_JSON` →
 | Síntoma | Causa probable | Cómo confirmarlo | Acción |
 |---|---|---|---|
 | El carrusel no aparece en la página | Menos productos que `min_of_products`, audiencia distinta o proveedor apagado | `BLOCK_DROPPED`/`BLOCK_SKIPPED` con `reason` | Esperado si `reason` lo explica |
+| Todos los carruseles Vertex en `UNAVAILABLE` a la vez | Breaker `products-list-vertex` abierto por respuestas que no se pueden leer | `reason: CIRCUIT_BREAKER_OPEN`; el primer `BLOCK_DEGRADED` trae `causeChain` con `DecodeException` | Ver qué clase de platform-commons falla en `detail` e ignorar ese campo en `VertexSearchData` |
+| Un carrusel Vertex difiere de web-bff solo en un producto, hacia la posición 8 | Producto patrocinado que ms_plp_search rota por petición | Correr dos veces el mismo `curl`: cambia también en web-bff | Esperado |
 | Carrusel de Salesforce nunca sale para invitado | Requiere usuario | `reason: MISSING_USER_IDENTITY` | Esperado (igual que web-bff) |
 | Aparece un producto bloqueado | Lista negra no se pudo leer o la bandera está apagada | `RESTRICTED_PRODUCTS_UNAVAILABLE`; `FF_CAROUSEL_RESTRICTED_PRODUCTS` | Revisar catalog-ingestion-service |
 | `UNAVAILABLE` en todos los carruseles de un proveedor | Breaker abierto | `CIRCUIT_BREAKER_OPEN` con `breaker` | Revisar el proveedor; se recupera solo |

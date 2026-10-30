@@ -4,7 +4,7 @@ title: "Configuración"
 type: reference
 status: current
 owner: equipo-search-browse
-lastReviewed: 2026-10-27
+lastReviewed: 2026-10-29
 sources:
   - src/main/resources/application.yaml
   - src/main/resources/application-dev.yaml
@@ -168,8 +168,8 @@ Solo para las banderas por marca. Vacío = sin Mongo; las banderas salen del YAM
 |---|---|---|
 | `SALESFORCE_APPLICATION` | `Web` |  |
 | `SALESFORCE_USER_ID_HEADER` | `x-sf-user-id` |  |
-| `SALESFROCE_AUTH_USERNAME` | *(vacío)* | sí |
-| `SALESFROCE_AUTH_PASSWORD` | *(vacío)* | sí |
+| `SALESFORCE_AUTH_USERNAME` | *(vacío)* | sí |
+| `SALESFORCE_AUTH_PASSWORD` | *(vacío)* | sí |
 
 ## Salesforce (carruseles, platform-commons)
 
@@ -230,7 +230,7 @@ Fuente de `categoryData`. De mejor esfuerzo.
 
 | Variable | Por defecto | Secreto |
 |---|---|---|
-| `CATEGORY_INDEXER_URL` | `https://ogcp-apigke-site-d.liverpool.com.mx/category-tree-indexer/v1` |  |
+| `CATEGORY_INDEXER_URL` | `https://ogcp-apigke-site-d.liverpool.com.mx/category-indexer/v1` |  |
 | `CATEGORY_INDEXER_SEARCH_PATH` | `/search-category` |  |
 | `CATEGORY_INDEXER_TIMEOUT` | `2s` |  |
 | `CATEGORY_INDEXER_CACHE_TTL` | `24h` |  |
@@ -258,33 +258,6 @@ Productos que nunca salen en un carrusel. Falla abierta.
 | `BLACKLIST_LIMIT` | `-1` |  |
 | `BLACKLIST_TIMEOUT` | `2s` |  |
 | `BLACKLIST_CACHE_TTL` | `10m` |  |
-
-## Servicio de autenticación
-
-Intercambio de la cookie `SessionId`; ninguna ruta de landing lo llama hoy, se conserva de ms-home para los flujos que lean identidad.
-
-| Variable | Por defecto | Secreto |
-|---|---|---|
-| `AUTH_BASE_URL` | `http://localhost:8085` |  |
-| `AUTH_BASE_URL_LP` | *(vacío)* |  |
-| `AUTH_BASE_URL_SB` | *(vacío)* |  |
-| `AUTH_BASE_URL_WE` | *(vacío)* |  |
-| `AUTH_BASE_URL_WS` | *(vacío)* |  |
-| `AUTH_BASE_URL_PB` | *(vacío)* |  |
-| `AUTH_BASE_URL_PBK` | *(vacío)* |  |
-| `AUTH_BASE_URL_DPS` | *(vacío)* |  |
-| `AUTH_BASE_URL_FB` | *(vacío)* |  |
-| `AUTH_BASE_URL_DCK` | *(vacío)* |  |
-| `AUTH_BASE_URL_GAP` | *(vacío)* |  |
-| `AUTH_BASE_URL_BR` | *(vacío)* |  |
-| `AUTH_BASE_URL_TRU` | *(vacío)* |  |
-| `AUTH_BASE_URL_BRU` | *(vacío)* |  |
-| `AUTH_EXCHANGE_TOKEN_PATH_TEMPLATE` | `/v{version}/auth/exchange-token` |  |
-| `AUTH_DEFAULT_VERSION` | `2` |  |
-| `AUTH_SUPPORTED_VERSIONS` | `2,3` |  |
-| `AUTH_SESSION_COOKIE` | `SessionId` |  |
-| `AUTH_CONNECT_TIMEOUT` | `2s` |  |
-| `AUTH_READ_TIMEOUT` | `4s` |  |
 
 ## Akamai
 
@@ -344,7 +317,7 @@ Un solo `CircuitBreakerRegistry` para todos los breakers. Sin reintentos.
 | `MAX_HTTP_HEADER_SIZE` | `16KB` |  |
 | `LOG_LEVEL_APP` | `INFO` |  |
 | `FEIGN_LOG_ENABLED` | `false` |  |
-| `OUTBOUND_EXPECTED_FAILURES` | `auth:401,auth:404` |  |
+| `OUTBOUND_EXPECTED_FAILURES` | *(vacío)* |  |
 | `MANAGEMENT_PORT` | `8081` |  |
 | `LOG_FORMAT` | *(vacío)* |  |
 | `LOG_COLOR` | `always` |  |

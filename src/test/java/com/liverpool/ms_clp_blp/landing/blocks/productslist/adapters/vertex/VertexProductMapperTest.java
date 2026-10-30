@@ -160,12 +160,57 @@ class VertexProductMapperTest {
         assertThat(mapper.toProducts(List.of(emptyList)).get(0).getCategories()).isEmpty();
     }
 
+    /** digital_bff publishes Vertex's ids, which the breadcrumb strings do not always carry. */
     @Test
-    void mainCategory_isNeverSet() {
+    void categories_carrouselCategoriesWinOverTheBreadcrumb() {
         RecordsResponse record = record("sku-1", "P");
-        record.setCategories(List.of("100#Mujer"));
+        record.setCategories(List.of("Haus>Blancos"));
+        record.setCarrouselCategories(List.of(category("CATST16930700", "Haus"), category("CATST7795771", "Blancos")));
 
-        assertThat(mapper.toProducts(List.of(record)).get(0).getMainCategory()).isNull();
+        List<ProductRecommendation.Category> categories = mapper.toProducts(List.of(record)).get(0).getCategories();
+
+        assertThat(categories).extracting(ProductRecommendation.Category::getId)
+                .containsExactly("CATST16930700", "CATST7795771");
+        assertThat(categories).extracting(ProductRecommendation.Category::getLabel)
+                .containsExactly("Haus", "Blancos");
+    }
+
+    @Test
+    void mainCategory_isTheRecordsMainCategory_orBlank() {
+        RecordsResponse withMain = record("sku-1", "P");
+        withMain.setMainCategory("Haus");
+        RecordsResponse without = record("sku-2", "P");
+
+        assertThat(mapper.toProducts(List.of(withMain)).get(0).getMainCategory()).isEqualTo("Haus");
+        assertThat(mapper.toProducts(List.of(without)).get(0).getMainCategory()).isEmpty();
+    }
+
+    // ── flags: the record's featureFlags ─────────────────────────────────────────────────────────
+
+    @Test
+    void flags_carryEveryFlagTheRecordSent_andOmitAbsentOnes() {
+        FeatureFlags flags = new FeatureFlags();
+        flags.setIsMarketPlace(false);
+        flags.setIsSponsoredRecord(true);
+        flags.setIsCrossBorder(false);
+        RecordsResponse record = record("sku-1", "P");
+        record.setFeatureFlags(flags);
+
+        VertexProductRecommendation product =
+                (VertexProductRecommendation) mapper.toProducts(List.of(record)).get(0);
+
+        assertThat(product.getFlags()).containsExactly(
+                java.util.Map.entry("isMarketPlace", false),
+                java.util.Map.entry("isSponsoredRecord", true),
+                java.util.Map.entry("isCrossBorder", false));
+    }
+
+    @Test
+    void flags_noFeatureFlags_isEmptyNotNull() {
+        VertexProductRecommendation product =
+                (VertexProductRecommendation) mapper.toProducts(List.of(record("sku-1", "P"))).get(0);
+
+        assertThat(product.getFlags()).isEmpty();
     }
 
     // ── images: first color variant's gallery content ────────────────────────────────────────────
@@ -181,7 +226,9 @@ class VertexProductMapperTest {
         List<ProductRecommendation.ProductImage> images = mapper.toProducts(List.of(record)).get(0).getImages();
 
         assertThat(images).hasSize(2);
-        assertThat(images.get(0).getType()).isEqualTo("thumbnailImage");
+        // digital_bff: the first gallery image is the large one, the rest are thumbnails.
+        assertThat(images.get(0).getType()).isEqualTo("largeImage");
+        assertThat(images.get(1).getType()).isEqualTo("thumbnailImage");
         assertThat(images.get(0).getUrl()).isEqualTo("http://img/1.jpg");
         assertThat(images.get(1).getUrl()).isEqualTo("http://img/2.jpg");
     }
@@ -271,5 +318,12 @@ class VertexProductMapperTest {
         record.setProductId(productId);
         record.setTitle(title);
         return record;
+    }
+
+    private static ProductRecommendation.Category category(String id, String label) {
+        ProductRecommendation.Category category = new ProductRecommendation.Category();
+        category.setId(id);
+        category.setLabel(label);
+        return category;
     }
 }

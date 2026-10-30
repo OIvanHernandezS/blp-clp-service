@@ -1,7 +1,10 @@
 package com.liverpool.ms_clp_blp.landing.blocks.productslist.adapters.vertex;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import com.liverpool.dto.ProductRecommendation;
 import com.liverpool.dto.groupby.ColorInfoDTO;
@@ -27,20 +30,23 @@ import com.liverpool.ms_clp_blp.shared.web.LegacyNumberFormat;
  *       ({@code promoPrice.price}, falling back to {@code promoPrice.maxPrice}, then {@code 0}) — a
  *       third convention distinct from both Jewel (promo price only) and Salesforce (list price
  *       only).</li>
- *   <li><strong>{@code categories}</strong> comes from the first breadcrumb string in
- *       {@code categories[0]}, split on {@code >} then {@code #}; unlike Jewel there is no trailing
- *       {@code |} suffix to strip, and a crumb with no {@code #} publishes its raw text as the label
- *       with a {@code null} id.</li>
- *   <li><strong>{@code mainCategory}</strong> is never set — legacy's {@code ProductDto} has no such
- *       field for Vertex, matching Salesforce's mapper (Jewel is the only source that populates it).</li>
+ *   <li><strong>{@code categories}</strong> is the record's {@code carrouselCategories} ({@code id} +
+ *       {@code label}, as digital_bff publishes since its "vertex cats" fix). Only when the record
+ *       carries none does it fall back to the first breadcrumb in {@code categories[0]}, split on
+ *       {@code >} then {@code #} (a crumb with no {@code #} publishes as label with a {@code null} id).</li>
+ *   <li><strong>{@code mainCategory}</strong> is the record's {@code mainCategory}, {@code ""} when
+ *       absent; {@code flags} is the record's {@code featureFlags}, {@code {}} when absent. Both are
+ *       carried by {@link VertexProductRecommendation}, which publishes them for Vertex only.</li>
  *   <li><strong>{@code images}</strong> comes from the first color variant's gallery content, not a
- *       dedicated image list — Vertex has no top-level image field.</li>
+ *       dedicated image list — Vertex has no top-level image field. The first one is
+ *       {@code largeImage}, the rest {@code thumbnailImage}.</li>
  *   <li><strong>{@code variants}</strong> is always empty — legacy's {@code fromVertex} never
  *       populates it (a placeholder), unlike Jewel's {@code item_variants}.</li>
  * </ul>
  */
 public class VertexProductMapper {
 
+    private static final String FIRST_IMAGE_TYPE = "largeImage";
     private static final String IMAGE_TYPE = "thumbnailImage";
     private static final String BREADCRUMB_SEPARATOR = ">";
     private static final String BREADCRUMB_ID_LABEL_SEPARATOR = "#";
@@ -69,7 +75,7 @@ public class VertexProductMapper {
     private ProductRecommendation toProduct(RecordsResponse source, int index) {
         FeatureFlags flags = source.getFeatureFlags();
 
-        ProductRecommendation product = new ProductRecommendation();
+        VertexProductRecommendation product = new VertexProductRecommendation();
         product.setIndex(index);
         product.setProductId(source.getProductId() == null ? "" : source.getProductId());
         product.setName(source.getTitle() == null ? "" : source.getTitle());
@@ -84,6 +90,8 @@ public class VertexProductMapper {
         product.setVariants(List.of());
         product.setMarketplace(flags != null && Boolean.TRUE.equals(flags.getIsMarketPlace()));
         product.setIsCollectionProduct(flags != null && Boolean.TRUE.equals(flags.getIsCollection()));
+        product.setMainCategory(source.getMainCategory() == null ? "" : source.getMainCategory());
+        product.setFlags(flags(flags));
         return product;
     }
 
@@ -119,6 +127,10 @@ public class VertexProductMapper {
      * with no {@code #} publishes as {@code {label: crumb, id: null}} (legacy parity).
      */
     private List<ProductRecommendation.Category> categories(RecordsResponse source) {
+        List<ProductRecommendation.Category> carrousel = source.getCarrouselCategories();
+        if (carrousel != null && !carrousel.isEmpty()) {
+            return List.copyOf(carrousel.stream().filter(Objects::nonNull).toList());
+        }
         List<String> categories = source.getCategories();
         if (categories == null || categories.isEmpty() || categories.get(0) == null
                 || categories.get(0).isBlank()) {
@@ -148,11 +160,37 @@ public class VertexProductMapper {
         List<ProductRecommendation.ProductImage> images = new ArrayList<>();
         for (GalleryContentDto content : variants.get(0).getGalleryContent()) {
             ProductRecommendation.ProductImage image = new ProductRecommendation.ProductImage();
-            image.setType(IMAGE_TYPE);
+            image.setType(images.isEmpty() ? FIRST_IMAGE_TYPE : IMAGE_TYPE);
             image.setUrl(content.getUrl() == null ? "" : content.getUrl());
             images.add(image);
         }
         return images;
+    }
+
+    /**
+     * The record's {@code featureFlags} as published by digital_bff: every flag the upstream sent,
+     * in declaration order; absent ones are omitted, and no flags at all is an empty map.
+     */
+    private Map<String, Boolean> flags(FeatureFlags source) {
+        Map<String, Boolean> flags = new LinkedHashMap<>();
+        if (source == null) {
+            return flags;
+        }
+        putIfPresent(flags, "isMarketPlace", source.getIsMarketPlace());
+        putIfPresent(flags, "isSponsoredRecord", source.getIsSponsoredRecord());
+        putIfPresent(flags, "isAr", source.getIsAr());
+        putIfPresent(flags, "isCollection", source.getIsCollection());
+        putIfPresent(flags, "exceedVariantsLimit", source.getExceedVariantsLimit());
+        putIfPresent(flags, "isChanel", source.getIsChanel());
+        putIfPresent(flags, "isHybrid", source.getIsHybrid());
+        putIfPresent(flags, "isCrossBorder", source.getIsCrossBorder());
+        return flags;
+    }
+
+    private static void putIfPresent(Map<String, Boolean> flags, String name, Boolean value) {
+        if (value != null) {
+            flags.put(name, value);
+        }
     }
 
     /** {@code seller[0]}, falling back to {@code sellerName}. */

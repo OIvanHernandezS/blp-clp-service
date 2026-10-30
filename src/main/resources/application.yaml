@@ -45,10 +45,10 @@ logging:
     # incident and turn it back off. Off it still logs one line per call (Logger.Level.BASIC).
     feign-enabled: ${FEIGN_LOG_ENABLED:false}
     # provider:status pairs that are normal business answers, not failures, so the outbound logger
-    # does not report them at WARN: an expired SessionId answered 401/404 by auth is already reported as
-    # SESSION_DEGRADED_TO_GUEST by the adapter that understands it. A pair, never a provider alone —
-    # auth:500 is a real outage. A malformed entry is skipped, never fatal.
-    expected-failures: ${OUTBOUND_EXPECTED_FAILURES:auth:401,auth:404}
+    # does not report them at WARN (e.g. store:404) — only for an adapter that already reports the
+    # case itself. A pair, never a provider alone — store:500 is a real outage. A malformed entry is
+    # skipped, never fatal. Empty by default: no upstream needs it today.
+    expected-failures: ${OUTBOUND_EXPECTED_FAILURES:}
 
 ---
 # LOG_FORMAT=pretty (local dev only) — human-readable console pattern instead of structured JSON.
@@ -333,13 +333,15 @@ salesforce:
   # Header carrying the ATG profile id that products_list sends as ID_ATG1 (ADR-041). Same header
   # ms_plp_search and ms_pdp_search already send to this provider.
   user-id-header: ${SALESFORCE_USER_ID_HEADER:x-sf-user-id}
-  # Basic credentials for the carousels client. The env var name is misspelled SALESFROCE upstream in
-  # platform-commons; it is matched here on purpose so one secret serves every service — do not "fix"
-  # it in isolation. Never committed: an unset value fails the call rather than sending an empty
-  # Authorization header, which is how carousels used to come back empty with no signal.
+  # Basic credentials for the carousels client. platform-commons' application-commons.yml reads the
+  # misspelled SALESFROCE_AUTH_* names, but that file is not loaded here (no `commons` profile), so the
+  # env var names are this service's own. The Secret Manager secret shared with ms_plp_search and
+  # ms_pdp_search may keep its old name — only the env var is renamed. Never committed: an unset
+  # value fails the call rather than sending an empty Authorization header, which is how carousels
+  # used to come back empty with no signal.
   auth:
-    user: ${SALESFROCE_AUTH_USERNAME:}
-    pass: ${SALESFROCE_AUTH_PASSWORD:}
+    user: ${SALESFORCE_AUTH_USERNAME:}
+    pass: ${SALESFORCE_AUTH_PASSWORD:}
 
 # Salesforce Personalization (V2) identity headers, passed through as-is in parity with commons'
 # ProductsListSalesforceV2Strategy: the user id wins, the device id is the fallback, and each block's
@@ -359,41 +361,6 @@ vertex:
   timeout: ${VERTEX_TIMEOUT:4s}
   # Used only when a block's own max_of_products is absent from the CMS.
   default-page-size: ${VERTEX_DEFAULT_PAGE_SIZE:12}
-
-# Shared auth microservice (Rule 19 reference: BFF SHARED_AUTH_URL). ms-clp-blp exchanges the SessionId
-# cookie for the request's login/guest state + profile id (tenant web|app is derived from x-channel:
-# WEB/KIOSCO/POS -> web, APP -> app; a missing or unknown channel exchanges as web, as before v0.26).
-auth:
-  base-url: ${AUTH_BASE_URL:http://localhost:8085}
-  # WORKAROUND for an upstream defect: the auth service routes the exchange by the request's Host and
-  # ignores x-brand-id, so a non-LP brand asking on liverpool.com.mx is answered as if it were not that
-  # brand — and every one of its users is silently degraded to guest, because the adapter swallows the
-  # failure. A brand named here with a non-blank URL has its exchange re-targeted at that origin; a
-  # blank entry (the default in every environment) means base-url, i.e. today's behaviour. Values must
-  # be absolute and carry the same /auth-service path prefix as base-url. Brands match LANDING_BRANDS.
-  brand-base-urls:
-    LP: ${AUTH_BASE_URL_LP:}
-    SB: ${AUTH_BASE_URL_SB:}
-    WE: ${AUTH_BASE_URL_WE:}
-    WS: ${AUTH_BASE_URL_WS:}
-    PB: ${AUTH_BASE_URL_PB:}
-    PBK: ${AUTH_BASE_URL_PBK:}
-    DPS: ${AUTH_BASE_URL_DPS:}
-    FB: ${AUTH_BASE_URL_FB:}
-    DCK: ${AUTH_BASE_URL_DCK:}
-    GAP: ${AUTH_BASE_URL_GAP:}
-    BR: ${AUTH_BASE_URL_BR:}
-    TRU: ${AUTH_BASE_URL_TRU:}
-    BRU: ${AUTH_BASE_URL_BRU:}
-  # The caller picks the contract per request with x-auth-version (ported from digital_bff); absent or
-  # not listed in supported-versions -> default-version. {version} is filled per request by Feign.
-  # Releasing a new contract = adding it to AUTH_SUPPORTED_VERSIONS (an unpublished one answers 404).
-  exchange-token-path-template: ${AUTH_EXCHANGE_TOKEN_PATH_TEMPLATE:/v{version}/auth/exchange-token}
-  default-version: ${AUTH_DEFAULT_VERSION:2}
-  supported-versions: ${AUTH_SUPPORTED_VERSIONS:2,3}
-  session-cookie-name: ${AUTH_SESSION_COOKIE:SessionId}
-  connect-timeout: ${AUTH_CONNECT_TIMEOUT:2s}
-  read-timeout: ${AUTH_READ_TIMEOUT:4s}
 
 # Jewel recommendation engine (Rule 19 reference: BFF SHARED_JEWEL_* env vars). Connection settings
 # (base URL, per-brand integration ids, timeouts) are bound onto the reused `com.liverpool.config
@@ -497,8 +464,12 @@ jewel:
 # POST /search-category/{brand}/{categoryId} with an empty body). Best effort: an indexer outage serves
 # the page without categoryData. Successful answers are cached per brand + category for cache-ttl
 # (digital_bff cached them for a day); failures are not cached.
+# Apigee route: /category-indexer/v1, NOT the service's own name /category-tree-indexer/v1 — Apigee
+# answers that one 404 "fault filter abort", which silently drops categoryData from every page.
+# web-bff calls the in-cluster http://category-tree-indexer.indexer.svc.cluster.local:8080/v1, which
+# Cloud Run cannot reach.
 category-indexer:
-  base-url: ${CATEGORY_INDEXER_URL:https://ogcp-apigke-site-d.liverpool.com.mx/category-tree-indexer/v1}
+  base-url: ${CATEGORY_INDEXER_URL:https://ogcp-apigke-site-d.liverpool.com.mx/category-indexer/v1}
   search-path: ${CATEGORY_INDEXER_SEARCH_PATH:/search-category}
   timeout: ${CATEGORY_INDEXER_TIMEOUT:2s}
   cache-ttl: ${CATEGORY_INDEXER_CACHE_TTL:24h}

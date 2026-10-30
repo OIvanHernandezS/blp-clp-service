@@ -26,10 +26,9 @@ import com.liverpool.ms_clp_blp.shared.constants.CdnConstants;
 /**
  * Baseline security posture for a stateless, gateway-fronted composition service (Rule 5 + security).
  *
- * <p>ms-clp-blp resolves the login/guest context by exchanging the {@code SessionId} cookie with the
- * shared auth service on each request (see {@code shared.session.SessionContextAdapter} /
- * {@code AuthTokenExchangePort}); it never trusts a client-asserted identity. This chain therefore
- * focuses on what this service owns: no server session, CSRF disabled (no browser form/session
+ * <p>ms-clp-blp holds no user identity: the login/guest signal is the caller's {@code x-is-logged-in}
+ * declaration, used only for block visibility and the edge-cache slot (see
+ * {@code shared.session.SessionContextAdapter}). This chain therefore focuses on what this service owns: no server session, CSRF disabled (no browser form/session
  * state), and hardened response headers.</p>
  *
  * <p>Actuator endpoints are served on a dedicated management port ({@code MANAGEMENT_PORT}, default
@@ -40,9 +39,8 @@ import com.liverpool.ms_clp_blp.shared.constants.CdnConstants;
  * <p>Every application endpoint requires HTTP Basic, matching what {@code ms_pdp_search} and
  * {@code ms_plp_search} already enforce. Cloud Run runs this service with
  * {@code --allow-unauthenticated}, so without this the {@code --ingress} setting on the load balancer
- * was the only perimeter. The credential is a service credential, not a user identity — the
- * <em>caller's</em> identity is still the {@code SessionId} exchange described above, and the two are
- * independent: a valid Basic credential says nothing about whether the request is logged in.</p>
+ * was the only perimeter. The credential is a service credential, not a user identity: a valid Basic
+ * credential says nothing about whether the request is logged in.</p>
  *
  * <p>Only the OpenAPI surfaces stay public, as in {@code ms_pdp_search}. They are already absent in
  * production, where {@code application-prod.yaml} sets {@code springdoc.swagger-ui.enabled=false}.</p>
@@ -112,8 +110,8 @@ public class SecurityConfig {
     // nothing since ADR-053 removed preview, but it stays allow-listed for exactly the same reason x-user-id does, below: allow-listing a
     // header the service ignores is free, while removing one the browser still sends fails the CORS
     // preflight for the whole request. x-user-id must stay allow-listed even though ms-clp-blp
-    // no longer reads it for Salesforce identity (ADR-033, which moved that to the server-derived
-    // SessionId exchange): the frontend still sends it on every block-resolution call, and removing
+    // no longer reads it for Salesforce identity (ADR-041 reads x-sf-user-id instead): the frontend
+    // still sends it on every block-resolution call, and removing
     // it here would fail the browser's CORS preflight for the whole request, not just drop the header.
     // x-sf-user-id carries the ATG profile id that products_list sends to Salesforce as ID_ATG1
     // (ADR-041). It must be allow-listed here or the browser's CORS preflight fails the whole
@@ -121,9 +119,8 @@ public class SecurityConfig {
     // authorization carries the inbound Basic credential. Same rule, and it bites harder: without it
     // the preflight fails before the browser ever sends the credentialed request, so every call reads
     // as a CORS error rather than as the 401 it would otherwise be.
-    // x-auth-version opts the session-token exchange into the v3 auth contract and x-client-platform
-    // selects its Auth0 client (both ported from digital_bff). Same rule again: the browser sends them
-    // on the block-resolution calls that exchange, and a missing entry fails the whole preflight.
+    // x-auth-version and x-client-platform fed the SessionId exchange this service no longer makes.
+    // Same rule again: the browser still sends them, and a missing entry fails the whole preflight.
     private static final List<String> CORS_ALLOWED_HEADERS = List.of(
             "authorization", "content-type", "x-brand-id", "x-locale", "x-channel", "x-preview",
             "x-user-id", "x-jml-user-id", "x-jml-device-id", "x-sf-user-id", "x-is-logged-in",

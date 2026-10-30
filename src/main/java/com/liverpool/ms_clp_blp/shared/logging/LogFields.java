@@ -62,17 +62,6 @@ public final class LogFields {
     public static final String LOCALE = "locale";
     public static final String CHANNEL = "channel";
     public static final String AUTHENTICATED = "authenticated";
-    /** Auth-service tenant ({@code web}/{@code app}) a token exchange was made for. */
-    public static final String TENANT = "tenant";
-    /**
-     * Auth-service contract a token exchange used, as text ({@code "2"}, {@code "3"}…), so one query
-     * ({@code authVersion="3"}) works across every event that carries it.
-     */
-    public static final String AUTH_VERSION = "authVersion";
-    /** The raw {@code x-auth-version} the caller sent, when it was not a supported contract. */
-    public static final String REQUESTED_VERSION = "requestedVersion";
-    /** The caller's {@code x-client-platform} ({@code web}/{@code android}/{@code ios}). */
-    public static final String CLIENT_PLATFORM = "clientPlatform";
 
     // ── failure context ───────────────────────────────────────────────────────────────────────────
     public static final String ERROR_CODE = "errorCode";

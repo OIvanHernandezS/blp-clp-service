@@ -1,7 +1,7 @@
 /**
  * Low-level infrastructure for external systems — declarative Feign clients, their per-system
  * transport configuration and connection properties, grouped per system (contentstack, salesforce,
- * jewel, vertex, auth, shortcuts) plus the cross-client logging beans in {@code feign}.
+ * jewel, vertex, store, blacklist…) plus the cross-client logging beans in {@code feign}.
  *
  * <p>Each system owns a {@code <System>Client} {@code @FeignClient} interface and an un-annotated
  * {@code <System>FeignConfig} named from it, so timeouts and connection pools stay scoped to that one

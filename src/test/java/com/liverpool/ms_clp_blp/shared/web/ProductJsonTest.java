@@ -70,6 +70,31 @@ class ProductJsonTest {
     }
 
     /**
+     * Vertex is the exception: digital_bff's {@code fromVertex} publishes {@code mainCategory} and
+     * {@code flags}, so {@code VertexProductRecommendation} lifts the mixin's ignoral for it alone. Both
+     * mappers must agree — Jackson 2 writes the inlined (eager) carousels, Jackson 3 the lazy ones.
+     */
+    @Test
+    void vertexProduct_publishesMainCategoryAndFlags_onBothJacksonMajors() {
+        com.liverpool.ms_clp_blp.landing.blocks.productslist.adapters.vertex.VertexProductRecommendation product =
+                new com.liverpool.ms_clp_blp.landing.blocks.productslist.adapters.vertex.VertexProductRecommendation();
+        product.setProductId("1074619185");
+        product.setMainCategory("Haus");
+        product.setFlags(Map.of("isSponsoredRecord", false));
+        tools.jackson.databind.json.JsonMapper jackson3 = tools.jackson.databind.json.JsonMapper.builder()
+                .addMixIn(ProductRecommendation.class, ProductRecommendationMixin.class).build();
+
+        Map<String, Object> json2 = mapper.convertValue(product, MAP);
+        Map<String, Object> json3 = jackson3.convertValue(product, new tools.jackson.core.type.TypeReference<>() {});
+
+        for (Map<String, Object> json : List.of(json2, json3)) {
+            assertThat(json).containsEntry("mainCategory", "Haus")
+                    .containsEntry("flags", Map.of("isSponsoredRecord", false))
+                    .containsKey("isMarketplace");
+        }
+    }
+
+    /**
      * The legacy response is JavaScript: absent fields are omitted, never null. Salesforce products
      * have no {@code discountLabel}, and nothing on Home sets {@code isCollectionProduct}.
      */

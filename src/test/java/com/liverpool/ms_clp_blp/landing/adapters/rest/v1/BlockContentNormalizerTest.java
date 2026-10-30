@@ -115,7 +115,21 @@ class BlockContentNormalizerTest {
 
     // ── the one CMS field reshape this service performs (container_shortcuts, legacy parity) ──────
 
-    /** The type-aware entry point is the same defensive copy for every landing block type. */
+    /**
+     * A legacy {@code groupby} carousel is resolved by Vertex (ADR-055) and published as such, like
+     * digital_bff's Vertex strategy does; any other source, and any other block type, is untouched.
+     */
+    @Test
+    void normalize_groupbyProductsList_isPublishedAsVertex() {
+        Map<String, Object> groupby = Map.of("uid", "blt1", "source_of_data", "groupby");
+        Map<String, Object> jewel = Map.of("uid", "blt2", "source_of_data", "jewel");
+
+        assertThat(normalizer.normalize(BlockType.PRODUCTS_LIST, groupby)).containsEntry("source_of_data", "vertex");
+        assertThat(normalizer.normalize(BlockType.PRODUCTS_LIST, jewel)).containsEntry("source_of_data", "jewel");
+        assertThat(normalizer.normalize(BlockType.BUTTON_LIST, groupby)).containsEntry("source_of_data", "groupby");
+    }
+
+    /** The type-aware entry point is the same defensive copy for every other landing block type. */
     @Test
     void normalize_withBlockType_isTheSameDefensiveCopy() {
         Map<String, Object> attributes = Map.of("title", "Chips", "items", List.of(Map.of("label", "Labiales")));

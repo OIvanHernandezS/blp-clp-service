@@ -10,6 +10,9 @@ Utilidades de desarrollo de ms-clp-blp. No forman parte del artefacto desplegabl
   valor). En sentido inverso (`--pull`), regenera un archivo `.env.example.<ambiente>` desde el estado
   real del servicio, incluida la referencia a Secret Manager de cada secreto (nunca su valor).
   Documentado abajo.
+- **`e2e-web-bff-parity-check/e2e-test.sh`** — prueba E2E de paridad de **datos** contra web-bff:
+  levanta el servicio con el `.env.<ambiente>` de la raíz y compara cada página de un CSV contra la
+  misma página de web-bff. Documentado abajo.
 
 ---
 
@@ -373,7 +376,8 @@ línea de comandos ni a un log.
   reales de este proyecto (`WISHLIST_APIKEY`, `SALESFORCE_AUTHORIZATION_PROD`), nunca en minúsculas
   con guiones. El prompt lo muestra como default (Enter lo acepta) y deja escribir otro nombre —
   necesario para el sufijo `_PROD`/`_QA`/`_DEV` que ya usan algunos secretos, o para reusar un secreto
-  compartido a propósito entre servicios (p.ej. `SALESFROCE_AUTH_USERNAME`/`_PASSWORD`).
+  compartido a propósito entre servicios (p.ej. la variable `SALESFORCE_AUTH_USERNAME` apuntando al
+  secreto `SALESFROCE_AUTH_USERNAME` de ms_plp_search/ms_pdp_search).
 - **Ya existe**: `gcloud secrets create` con un nombre que ya existe no se trata como error — el
   script sigue y le agrega una versión nueva al secreto existente.
 - **Falla al crear/agregar versión**: se reporta esa variable como fallida (contador aparte, ver
@@ -485,3 +489,114 @@ huérfana (creada pero sin conectar) y su mensaje de recuperación; que ninguna 
 a `gcloud secrets versions access` ni imprime el valor real de una variable; que `--dry-run` no hace
 ninguna llamada real a `gcloud secrets`/`--update-secrets`; que `--yes` nunca dispara `s`/`m`/`u`; y
 que una `KEY` repetida en `.env` se ignora en su segunda aparición, con aviso.
+
+---
+
+# Paridad E2E de datos contra web-bff
+
+`scripts/e2e-web-bff-parity-check/e2e-test.sh` responde a una pregunta: **¿lo que pinta el frontend
+con ms-clp-blp son los mismos datos que con web-bff?** Para cada página del CSV compara
+
+> web-bff `GET /content/page-<blp|clp>/es-mx/<path>` **=** ms-clp-blp `GET /<blp|clp>/es-mx/<path>`
+> **+** los `POST …/blocks/products-list` que el frontend haría después (carga lazy).
+
+Se comparan datos, no estructura: lo que difiere por construcción no cuenta.
+
+| Se ignora | Por qué |
+|---|---|
+| `status`, `loadStrategy`, `ms_params`, `url`, `httpMethod`, `resolutionPath`, `reason`, `featureFlagId` | Sobre de la carga lazy de ms-clp-blp |
+| `globalData` | No se incluye a propósito (ADR-002) |
+| `null` contra campo ausente | web-bff es JavaScript y emite `null` donde ms-clp-blp omite el campo |
+
+Todo lo demás (campos del CMS, `events`/`customData`, `categoryData`, cada producto campo por campo
+y en orden) se compara a fondo.
+
+## Qué necesitas
+
+| Requisito | Para qué |
+|---|---|
+| `.env.dev`, `.env.qa` o `.env.prod` en la raíz del repo | Configuración con la que se levanta el servicio y la credencial Basic de entrada |
+| `python3` y `curl` | El comparador usa solo la biblioteca estándar |
+| Red hacia web-bff y hacia los sistemas del ambiente | Contentstack, ms_plp_search, indexador… |
+| Puerto `8080` libre | Salvo con `--no-start` |
+
+## Uso
+
+```bash
+scripts/e2e-web-bff-parity-check/e2e-test.sh --prod            # levanta, compara y apaga
+scripts/e2e-web-bff-parity-check/e2e-test.sh --qa --no-start   # usa el servicio que ya corre en :8080
+scripts/e2e-web-bff-parity-check/e2e-test.sh --dev --csv mis-paginas.csv --brand SB
+```
+
+| Opción | Efecto |
+|---|---|
+| `--dev` / `--qa` / `--prod` | **Obligatoria, una sola.** Carga `.env.<ambiente>` (igual que `export $(grep -v '^#' .env.<ambiente> \| xargs)`) y levanta `./mvnw spring-boot:run` con ese perfil de Spring |
+| `--csv <archivo>` | Páginas a probar. Por defecto `categories-to-test.csv` junto al script |
+| `--bff-url <url>` | Sobrescribe el web-bff del ambiente |
+| `--ms-url <url>` | ms-clp-blp a probar (por defecto `http://localhost:8080`) |
+| `--brand <marca>` | `x-brand-id` para ambos servicios (por defecto `LP`) |
+| `--workers <n>` | Páginas en paralelo (por defecto 4) |
+| `--no-start` | No levanta el servicio; prueba el que ya escucha en `--ms-url` |
+| `--out <dir>` | Carpeta de salida (por defecto `scripts/e2e-web-bff-parity-check/out/<ambiente>-<fecha>/`, ignorada por git) |
+
+web-bff por ambiente (de `k8s/web-bff/*.values.yaml` de digital_bff):
+
+| Ambiente | web-bff |
+|---|---|
+| `--dev` | `https://ogcp-cms-sit.liverpool.com.mx/web-bff` |
+| `--qa` | `https://ogcp-cms-qas.liverpool.com.mx/web-bff` |
+| `--prod` | `https://ogcp-cms-site-d.liverpool.com.mx/web-bff` — el `-d` **no** es dev |
+
+Ambos servicios reciben `x-brand-id`, `x-channel: WEB` y `x-is-logged-in: false`: la comparación es
+la de un invitado web.
+
+## El CSV
+
+`categories-to-test.csv` trae dos columnas; cualquier otra se ignora:
+
+```csv
+content_type,path
+Page BLP,tienda/haus/catst16930700
+Page CLP,tienda/arte-y-decoración/cat5170154
+```
+
+`content_type` decide la ruta (`BLP` → `page-blp` / `/blp`, `CLP` → `page-clp` / `/clp`). `path`
+va sin `/` inicial; acentos y espacios se codifican solos.
+
+## Qué deja
+
+| Archivo | Contenido |
+|---|---|
+| `report.md` | Resumen, diferencias de estado, carruseles distintos, rutas JSON que difieren (con cuántas páginas y ocurrencias) y una fila por página |
+| `results.json` | Lo mismo por página, incluidas las llamadas lazy hechas y su estado |
+| `raw/<tipo>_<categoría>_bff.json` / `_ms_assembled.json` | Las dos páginas comparadas; la de ms-clp-blp ya con el contenido lazy integrado |
+| `service.log` | Log del servicio levantado (sin `--no-start`) |
+
+Al terminar imprime, además, cuántas veces aparecieron en el log `UPSTREAM_CALL_FAILED`,
+`CATEGORY_UNAVAILABLE`, `BLOCK_DEGRADED` y `CIRCUIT_BREAKER_STATE_CHANGED`: suelen explicar la mayor
+parte de las diferencias.
+
+## Cómo leer el resultado
+
+| Diferencia | Normalmente es |
+|---|---|
+| `length $.blocks[].products[].images[]` | **Esperado.** `PRODUCTS_LIST_MAX_IMAGES` (1 por defecto) recorta la galería; web-bff manda todas |
+| Un carrusel Vertex distinto solo hacia la posición 8 | **Esperado.** Es el producto patrocinado que ms_plp_search rota en cada petición |
+| `status bff=404 ms=200` con id en mayúsculas o codificado | **Esperado y correcto.** ms-clp-blp busca el `category_id` también en minúsculas (ADR-001); web-bff no, y responde 404 a una página que sí existe |
+| `only_bff $.categoryData` en pocas páginas | web-bff devuelve un `categoryData` de relleno ("Category id not found"); ms-clp-blp lo omite |
+| `only_bff $.categoryData` en **todas** | El indexador no responde: revisa `CATEGORY_INDEXER_URL` y `CATEGORY_UNAVAILABLE` en el log |
+| Carruseles `UNAVAILABLE` con `CIRCUIT_BREAKER_OPEN` | El proveedor falló bastantes veces; la causa está en el primer `BLOCK_DEGRADED` del log |
+
+## Seguridad
+
+La credencial Basic de entrada (`MS_CLP_BLP_SECURITY_USERNAME` / `_PASSWORD`) se lee del `.env` y
+solo viaja en el header `Authorization` hacia `--ms-url`; nunca se imprime. Los valores del `.env`
+se exportan tal cual, sin `eval`. Las páginas guardadas en `raw/` son contenido público del sitio.
+
+## Códigos de salida
+
+| Código | Significado |
+|---|---|
+| `0` | Todas las páginas tienen datos idénticos |
+| `1` | Hay diferencias (ver `report.md`) |
+| `2` | Error de uso o de entorno: falta el `.env`, el CSV o `python3`, el puerto está ocupado o el servicio no arrancó |

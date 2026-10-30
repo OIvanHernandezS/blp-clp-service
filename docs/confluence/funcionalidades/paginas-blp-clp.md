@@ -4,7 +4,7 @@ title: "Páginas BLP y CLP"
 type: feature
 status: current
 owner: equipo-search-browse
-lastReviewed: 2026-10-27
+lastReviewed: 2026-10-29
 sources:
   - src/main/java/com/liverpool/ms_clp_blp/landing/
   - src/main/java/com/liverpool/ms_clp_blp/clients/contentstackdirect/
@@ -196,6 +196,7 @@ Todas las variables: [Configuración](../plataforma/configuracion.md).
 |---|---|---|---|
 | 404 en una BLP/CLP que "existe" | No hay entrada publicada con ese `category_id` en ese ambiente o marca | `LANDING_PAGE_NOT_FOUND` en la respuesta; buscar la entrada por `category_id` en Contentstack | Publicar la entrada o corregir su `category_id` (minúsculas) |
 | Página sin `categoryData` | Indexador caído o categoría inexistente | `CATEGORY_UNAVAILABLE` con `categoryId` | Revisar category-tree-indexer; es esperado si la categoría no existe |
+| **Ninguna** página trae `categoryData` | `CATEGORY_INDEXER_URL` con la ruta equivocada | `CATEGORY_UNAVAILABLE` con `404 … [fault filter abort]` en `detail` | La ruta de Apigee es `/category-indexer/v1`, no `/category-tree-indexer/v1` |
 | Un cambio del CMS no se ve | Caché Caffeine (≤ 5 min) o edge | `x-data-origin: caffeine`; antigüedad en Akamai | Esperar la expiración o purgar (`POST /ops/cache-purge`) |
 | Falta la tienda en la analítica | Sin cookie `favoriteStore` o store-service caído | `FAVORITE_STORE_UNAVAILABLE` (DEBUG) | Esperado sin cookie |
 | 502 en todas las páginas de una marca | Contentstack caído o breaker `contentstack-<MARCA>` abierto | `CIRCUIT_BREAKER_OPEN`, `CMS_SOURCE_UNAVAILABLE` | Revisar estado de Contentstack y credenciales del stack |

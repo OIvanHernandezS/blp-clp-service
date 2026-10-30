@@ -45,7 +45,7 @@ import lombok.RequiredArgsConstructor;
  * <h3>Request signals:</h3>
  * <ul>
  *   <li>Session (brand/channel/headers) — from upstream-validated headers via
- *       {@link SessionContextPort}, without an auth call. Brand is the {@code x-brand-id} header,
+ *       {@link SessionContextPort}, with no outbound call. Brand is the {@code x-brand-id} header,
  *       falling back to {@code cms.default-brand}.</li>
  *   <li>{@code x-is-logged-in} — the caller's login declaration; it decides the audience a block is
  *       filtered for and selects the edge cache slot.</li>
@@ -138,17 +138,17 @@ public class LandingControllerV1 implements LandingApiV1 {
     }
 
     /**
-     * Resolves the session for this request without ever calling the auth service.
+     * Resolves the session for this request.
      *
-     * <p>{@link SessionContextPort#currentContextWithoutIdentity()} resolves brand, channel, locale and
-     * headers with no outbound call, and the caller's own {@link SessionContext#declaresLoggedIn()}
-     * declaration is folded in as {@code authenticated}: a landing page only needs guest-vs-logged-in
-     * for block visibility, never a verified {@code profileId} or {@code accessToken}.</p>
+     * <p>{@link SessionContextPort#currentContext()} resolves brand, channel, locale and headers with
+     * no outbound call, and the caller's own {@link SessionContext#declaresLoggedIn()} declaration is
+     * folded in as {@code authenticated}: a landing page only needs guest-vs-logged-in for block
+     * visibility (ADR-067).</p>
      *
      * @return the session to compose the page with
      */
     private SessionContext resolveSession() {
-        SessionContext session = sessionContextPort.currentContextWithoutIdentity();
+        SessionContext session = sessionContextPort.currentContext();
         return session.declaresLoggedIn() ? session.withAuthenticated(true) : session;
     }
 

@@ -14,16 +14,13 @@ import com.liverpool.ms_clp_blp.shared.session.SessionContext;
  * servlet request. The composition service copies the propagatable {@code x-*} request headers into
  * {@link #gatewayHeaders}; each resolver reads the specific header(s) its backing service needs via
  * {@link #header(String)} — e.g. Jewel's tracking identity ({@code x-jml-user-id}/{@code
- * x-jml-device-id}), genuine client-forwarded headers by design. Salesforce-backed resolvers do
- * <strong>not</strong> read an identity header here: {@code x-user-id} is client-supplied and
- * unvalidated against the session, so ADR-033 moved that identity to {@code
- * session().authenticatedProfileId()} instead — server-derived from the {@code SessionId} exchange,
- * not trusted from the caller.</p>
+ * x-jml-device-id}), genuine client-forwarded headers by design. Salesforce V1 reads its identity
+ * ({@code x-sf-user-id}) only when a well-formed {@code SessionId} travelled (ADR-041).</p>
  *
  * @param blockId        Contentstack block uid being resolved
  * @param blockType      classified block type
  * @param attributes     raw CMS attributes of the block (immutable, metadata included)
- * @param session        resolved session context (auth/brand/channel/locale)
+ * @param session        resolved session context (login/brand/channel/locale)
  * @param gatewayHeaders lower-cased snapshot of propagatable request headers (never {@code null})
  * @param resolutionPath path of the block's dedicated resolution endpoint
  * @param httpMethod     http method the frontend would use against {@code resolutionPath}

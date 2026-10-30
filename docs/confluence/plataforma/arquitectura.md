@@ -4,7 +4,7 @@ title: "Arquitectura"
 type: explanation
 status: current
 owner: equipo-search-browse
-lastReviewed: 2026-10-27
+lastReviewed: 2026-10-29
 sources:
   - src/main/java/com/liverpool/ms_clp_blp/
   - src/test/java/com/liverpool/ms_clp_blp/ArchitectureTest.java
@@ -34,7 +34,7 @@ com.liverpool.ms_clp_blp
 │   └── LandingConfig             cableado de los POJOs y del catálogo de bloques por tipo de página
 ├── clients/            infraestructura: un cliente Feign + *FeignConfig + *Properties por sistema
 │                       (contentstackdirect, categoryindexer, store, blacklist, vertex, salesforce,
-│                       salesforcev2, jewel, auth, akamai, mongo) + resilience + feign
+│                       salesforcev2, jewel, akamai, mongo) + resilience + feign
 └── shared/             transversal: errors (RFC 7807), session, web (seguridad, MDC, CORS),
                         logging (JSON para GCP), constants, cachepurge, cmspurgewebhook
 ```
@@ -49,7 +49,8 @@ com.liverpool.ms_clp_blp
 - `ports/` o `models/` importan Spring o `jakarta.servlet`;
 - un `@RestController` vive fuera de `adapters.rest`;
 - una implementación de puerto, `BlockResolver` o `BlockParamsBuilder` vive fuera de su paquete;
-- `productslist` lee identidad del intercambio de sesión.
+- `productslist` lee `authenticated`/`isGuest` de la sesión (ese endpoint no recibe
+  `x-is-logged-in` incorporado, así que siempre valdrían invitado).
 
 # Composición de la página
 

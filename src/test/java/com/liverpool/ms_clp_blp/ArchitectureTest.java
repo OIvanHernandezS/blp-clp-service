@@ -114,12 +114,12 @@ class ArchitectureTest {
             .as("BlockParamsBuilder strategies belong to a block sub-slice's adapters package");
 
     /**
-     * The slices wired to {@code SessionContextPort.currentContextWithoutIdentity()} skip the auth
-     * token exchange, so the three exchange-derived components of their {@code SessionContext} are
-     * guest-shaped placeholders rather than answers. Reading one would silently report every logged-in
+     * {@code SessionContextPort.currentContext()} is guest-shaped: only {@code GET /blp|clp/**} folds
+     * the caller's {@code x-is-logged-in} declaration into {@code authenticated}. The products-list
+     * endpoint does not, so reading the login signal there would silently report every logged-in
      * caller as a guest — no exception, no log line, just personalisation quietly switching off.
      *
-     * <p>A slice that starts needing real identity must move back to {@code currentContext()} and come
+     * <p>A slice that starts needing the login signal must fold the declaration in itself and come
      * off this list in the same commit.</p>
      */
     @ArchTest
@@ -127,8 +127,6 @@ class ArchitectureTest {
             .that().resideInAnyPackage("..ms_clp_blp.landing.blocks.productslist..")
             .should().callMethodWhere(
                     target(owner(type(com.liverpool.ms_clp_blp.shared.session.SessionContext.class)))
-                            .and(target(nameMatching(
-                                    "authenticated|isGuest|profileId|accessToken"
-                                            + "|authenticatedProfileId|authenticatedAccessToken"))))
-            .as("slices that skip the token exchange must not read exchange-derived identity");
+                            .and(target(nameMatching("authenticated|isGuest"))))
+            .as("slices that do not fold in x-is-logged-in must not read the login signal");
 }

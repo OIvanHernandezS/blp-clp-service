@@ -114,6 +114,37 @@ class VertexClientWireTest {
 						""", true, true)));
 	}
 
+	/**
+	 * Regression from the web-bff parity E2E run: a sponsored record carries
+	 * {@code sponsoredInfo.criteo}, whose platform-commons class ({@code Criteo}) has only a Lombok
+	 * builder and cannot be deserialized. Before the fix the whole response failed to decode, the
+	 * carousel came back UNAVAILABLE, and enough of them opened the {@code vertex} breaker for every
+	 * carousel on every page. {@code sponsoredInfo} is never read, so it is skipped.
+	 */
+	@Test
+	void search_sponsoredRecordWithCriteo_stillDeserializes() {
+		wireMock.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post(urlEqualTo(SEARCH_PATH))
+				.willReturn(aResponse()
+						.withStatus(200)
+						.withHeader("Content-Type", "application/json")
+						.withBody("""
+								{
+								  "data": { "records": [ {
+								    "productId": "sku-ad",
+								    "featureFlags": { "isSponsoredRecord": true },
+								    "sponsoredInfo": { "criteo": { "onLoadBeacon": "https://b.criteo/l",
+								                                   "onClickBeacon": "https://b.criteo/c" } }
+								  } ] }
+								}
+								""")));
+
+		VertexSearchResponse response = vertexClient.search(new PlpRequestPayloadDTO());
+
+		assertThat(response.data().records()).hasSize(1);
+		assertThat(response.data().records().get(0).getProductId()).isEqualTo("sku-ad");
+		assertThat(response.data().records().get(0).getFeatureFlags().getIsSponsoredRecord()).isTrue();
+	}
+
 	/** Error statuses must surface as {@link FeignException} for the adapter to translate. */
 	@Test
 	void search_upstream500_throwsFeignException() {

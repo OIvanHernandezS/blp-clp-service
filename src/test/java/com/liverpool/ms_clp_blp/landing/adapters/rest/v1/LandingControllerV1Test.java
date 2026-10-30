@@ -37,7 +37,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -108,7 +107,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_guestSession_returns200WithJsonBody() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(GUEST_SESSION);
+        when(sessionContextPort.currentContext()).thenReturn(GUEST_SESSION);
         when(landingService.getLandingPage(any())).thenReturn(EMPTY_PAGE);
         when(landingPageMapper.toResponse(any())).thenReturn(emptyResponse());
 
@@ -121,7 +120,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_authenticatedSession_returns200() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(AUTH_SESSION);
+        when(sessionContextPort.currentContext()).thenReturn(AUTH_SESSION);
         when(landingService.getLandingPage(any())).thenReturn(EMPTY_PAGE);
         when(landingPageMapper.toResponse(any())).thenReturn(emptyResponse());
 
@@ -131,7 +130,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_inboundRequestId_echoedInResponseHeader() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(GUEST_SESSION);
+        when(sessionContextPort.currentContext()).thenReturn(GUEST_SESSION);
         when(landingService.getLandingPage(any())).thenReturn(EMPTY_PAGE);
         when(landingPageMapper.toResponse(any())).thenReturn(emptyResponse());
 
@@ -142,7 +141,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_noRequestId_generatesUuidInResponseHeader() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(GUEST_SESSION);
+        when(sessionContextPort.currentContext()).thenReturn(GUEST_SESSION);
         when(landingService.getLandingPage(any())).thenReturn(EMPTY_PAGE);
         when(landingPageMapper.toResponse(any())).thenReturn(emptyResponse());
 
@@ -153,7 +152,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_responseContainsFlatBlocksAtTheRoot() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(GUEST_SESSION);
+        when(sessionContextPort.currentContext()).thenReturn(GUEST_SESSION);
         when(landingService.getLandingPage(any())).thenReturn(EMPTY_PAGE);
 
         Map<String, Object> block = Map.of("_content_type_uid", "banner", "uid", "uid-1", "title", "Hello");
@@ -168,7 +167,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_originRecordedByTheContentChain_echoedInResponseHeader() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(GUEST_SESSION);
+        when(sessionContextPort.currentContext()).thenReturn(GUEST_SESSION);
         // The mocked use case bypasses the real ContentSourceRouter/CachedLandingContentPort chain, so
         // the origin this controller reads back is set here the same way that chain would have.
         when(landingService.getLandingPage(any())).thenAnswer(invocation -> {
@@ -184,7 +183,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_noOriginRecorded_headerAbsent() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(GUEST_SESSION);
+        when(sessionContextPort.currentContext()).thenReturn(GUEST_SESSION);
         when(landingService.getLandingPage(any())).thenReturn(EMPTY_PAGE);
         when(landingPageMapper.toResponse(any())).thenReturn(emptyResponse());
 
@@ -206,7 +205,7 @@ class LandingControllerV1Test {
 
     /** Same, also carrying a well-formed {@code SessionId} cookie value. */
     private static SessionContext sessionDeclaring(boolean authenticated, String claim, String sessionId) {
-        return new SessionContext(authenticated, "LP", "WEB", "es-mx", null,
+        return new SessionContext(authenticated, "LP", "WEB", "es-mx",
                 Map.of(SessionContext.HEADER_IS_LOGGED_IN, claim), sessionId);
     }
 
@@ -219,7 +218,7 @@ class LandingControllerV1Test {
     }
 
     private void stubLandingPage(SessionContext session) {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(session);
+        when(sessionContextPort.currentContext()).thenReturn(session);
         when(landingService.getLandingPage(any())).thenReturn(EMPTY_PAGE);
         when(landingPageMapper.toResponse(any())).thenReturn(emptyResponse());
     }
@@ -294,7 +293,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_errorResponse_keepsTheUncacheableSecurityDefault() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(sessionDeclaring(false, "false"));
+        when(sessionContextPort.currentContext()).thenReturn(sessionDeclaring(false, "false"));
         when(landingService.getLandingPage(any()))
                 .thenThrow(new ContentServiceUnavailableException(
                         "content-service is down", "upstream 500", null));
@@ -309,7 +308,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_errorResponse_dataOriginHeaderAbsent() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(GUEST_SESSION);
+        when(sessionContextPort.currentContext()).thenReturn(GUEST_SESSION);
         when(landingService.getLandingPage(any()))
                 .thenThrow(new ContentServiceUnavailableException(
                         "content-service is down", "upstream 500", null));
@@ -321,7 +320,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_contentServiceUnavailable_returns502ProblemDetail() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(GUEST_SESSION);
+        when(sessionContextPort.currentContext()).thenReturn(GUEST_SESSION);
         when(landingService.getLandingPage(any()))
                 .thenThrow(new ContentServiceUnavailableException(
                         "content-service is down", "upstream 500", null));
@@ -334,7 +333,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_pageNotFound_returns404ProblemDetail() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(GUEST_SESSION);
+        when(sessionContextPort.currentContext()).thenReturn(GUEST_SESSION);
         when(landingService.getLandingPage(any()))
                 .thenThrow(new LandingDefinitionNotFoundException("not found", "brand=LP locale=es-mx"));
 
@@ -346,7 +345,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_circuitBreakerOpen_returns503ProblemDetail() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(GUEST_SESSION);
+        when(sessionContextPort.currentContext()).thenReturn(GUEST_SESSION);
         when(landingService.getLandingPage(any()))
                 .thenThrow(new ServiceUnavailableException("breaker open", null));
 
@@ -358,7 +357,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_unexpectedError_returns500WithoutInternalDetail() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(GUEST_SESSION);
+        when(sessionContextPort.currentContext()).thenReturn(GUEST_SESSION);
         when(landingService.getLandingPage(any()))
                 .thenThrow(new RuntimeException("secret internal detail: password=abc123"));
 
@@ -398,7 +397,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_invalidLocale_returns400ValidationError() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(GUEST_SESSION);
+        when(sessionContextPort.currentContext()).thenReturn(GUEST_SESSION);
 
         mockMvc.perform(get("/blp/ES_MX/tienda/esteelauder/catst26617625"))
                 .andExpect(status().isBadRequest())
@@ -426,7 +425,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_eagerOffsetParam_passedToQuery() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(GUEST_SESSION);
+        when(sessionContextPort.currentContext()).thenReturn(GUEST_SESSION);
         when(landingService.getLandingPage(any())).thenReturn(EMPTY_PAGE);
         when(landingPageMapper.toResponse(any())).thenReturn(emptyResponse());
 
@@ -439,7 +438,7 @@ class LandingControllerV1Test {
 
     @Test
     void getBrandLandingPage_negativeEagerOffset_returns400ValidationError() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(GUEST_SESSION);
+        when(sessionContextPort.currentContext()).thenReturn(GUEST_SESSION);
 
         mockMvc.perform(get(BLP_URL).param("eagerOffset", "-1"))
                 .andExpect(status().isBadRequest())
@@ -451,8 +450,8 @@ class LandingControllerV1Test {
         // The x-* header snapshot is captured by SessionContextAdapter; the controller forwards
         // session.headers() into the query. Sensitive headers never reach the session snapshot.
         SessionContext sessionWithHeaders = new SessionContext(
-                true, "LP", "WEB", "es-mx", "user-42", Map.of("x-user-id", "user-42"));
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(sessionWithHeaders);
+                true, "LP", "WEB", "es-mx", Map.of("x-user-id", "user-42"), null);
+        when(sessionContextPort.currentContext()).thenReturn(sessionWithHeaders);
         when(landingService.getLandingPage(any())).thenReturn(EMPTY_PAGE);
         when(landingPageMapper.toResponse(any())).thenReturn(emptyResponse());
 
@@ -475,7 +474,7 @@ class LandingControllerV1Test {
      */
     @Test
     void getBrandLandingPage_brandComesFromSession_andBrandQueryParamIsIgnored() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity())
+        when(sessionContextPort.currentContext())
                 .thenReturn(new SessionContext(false, "SB", "WEB", "es-mx"));
         when(landingService.getLandingPage(any())).thenReturn(EMPTY_PAGE);
         when(landingPageMapper.toResponse(any())).thenReturn(emptyResponse());
@@ -489,14 +488,13 @@ class LandingControllerV1Test {
 
     // ── session resolution (ADR-067) ─────────────────────────────────────────────────────────────
     //
-    // A landing page never exchanges the SessionId cookie with the auth service: it folds the caller's
-    // x-is-logged-in declaration into authenticated instead, because it only needs
-    // guest-vs-logged-in.
+    // A landing page folds the caller's x-is-logged-in declaration into authenticated, because it
+    // only needs guest-vs-logged-in.
 
     @Test
-    void getBrandLandingPage_declaredLoggedIn_skipsExchangeAndIsTreatedAsAuthenticated()
+    void getBrandLandingPage_declaredLoggedIn_isTreatedAsAuthenticated()
             throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity())
+        when(sessionContextPort.currentContext())
                 .thenReturn(sessionDeclaring(false, "true"));
         when(landingService.getLandingPage(any())).thenReturn(EMPTY_PAGE);
         when(landingPageMapper.toResponse(any())).thenReturn(emptyResponse());
@@ -504,21 +502,19 @@ class LandingControllerV1Test {
         mockMvc.perform(get(BLP_URL).header(SessionContext.HEADER_IS_LOGGED_IN, "true"))
                 .andExpect(status().isOk());
 
-        Mockito.verify(sessionContextPort, never()).currentContext();
         ArgumentCaptor<LandingPageQuery> captor = ArgumentCaptor.forClass(LandingPageQuery.class);
         Mockito.verify(landingService).getLandingPage(captor.capture());
         assertThat(captor.getValue().session().authenticated()).isTrue();
     }
 
     @Test
-    void getBrandLandingPage_noDeclaration_staysGuestWithoutExchange() throws Exception {
-        when(sessionContextPort.currentContextWithoutIdentity()).thenReturn(GUEST_SESSION);
+    void getBrandLandingPage_noDeclaration_staysGuest() throws Exception {
+        when(sessionContextPort.currentContext()).thenReturn(GUEST_SESSION);
         when(landingService.getLandingPage(any())).thenReturn(EMPTY_PAGE);
         when(landingPageMapper.toResponse(any())).thenReturn(emptyResponse());
 
         mockMvc.perform(get(BLP_URL)).andExpect(status().isOk());
 
-        Mockito.verify(sessionContextPort, never()).currentContext();
         ArgumentCaptor<LandingPageQuery> captor = ArgumentCaptor.forClass(LandingPageQuery.class);
         Mockito.verify(landingService).getLandingPage(captor.capture());
         assertThat(captor.getValue().session().authenticated()).isFalse();

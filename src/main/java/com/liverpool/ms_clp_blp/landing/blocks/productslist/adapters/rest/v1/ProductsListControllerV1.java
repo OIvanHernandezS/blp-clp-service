@@ -118,11 +118,12 @@ public class ProductsListControllerV1 implements ProductsListApiV1 {
     public ResponseEntity<ProductsListBatchResponse> resolveProductsList(
             @RequestBody List<Map<String, Object>> blocks) {
 
-        // No token exchange: every provider here personalises on request headers, and the Salesforce
-        // V1 gate below needs only the cookie's presence, which is checked locally (ADR-054).
-        SessionContext session = sessionContextPort.currentContextWithoutIdentity();
+        // Every provider here personalises on request headers, and the Salesforce V1 gate below needs
+        // only the cookie's presence, which is checked locally (ADR-054). No x-is-logged-in folding
+        // here: authenticated() stays guest-shaped on this endpoint (ArchitectureTest rule).
+        SessionContext session = sessionContextPort.currentContext();
         // Salesforce V1 identity: the x-sf-user-id header, and only when a SessionId cookie travelled
-        // (ADR-041). Every other Salesforce block still uses session.authenticatedProfileId() (ADR-033).
+        // (ADR-041).
         String atgUserId =
                 SalesforceSettings.resolveUserId(session, salesforceProperties.userIdHeader());
 

@@ -62,6 +62,8 @@ pages:
         file: plataforma/git-workflow.md
       - title: Cloud Run Environment Sync
         file: plataforma/cloud-run-env-sync.md
+      - title: Migración desde web-bff
+        file: plataforma/migracion-desde-web-bff.md
 
   - title: Referencia
     file: reference.md

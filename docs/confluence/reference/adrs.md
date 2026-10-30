@@ -4,7 +4,7 @@ title: "ADRs"
 type: adr
 status: current
 owner: equipo-search-browse
-lastReviewed: 2026-10-27
+lastReviewed: 2026-10-29
 sources:
   - src/main/java/com/liverpool/ms_clp_blp/
 tags: [adr, decisiones]
@@ -76,3 +76,19 @@ no permiten ese bloque.
 estático.  
 **Consecuencias:** las únicas banderas son las de los proveedores de carrusel y las dos de todo
 carrusel. Si el CMS habilita tabs en una landing, se porta el mecanismo de ms-home.
+
+## ADR-007 — Sin intercambio de `SessionId` con el servicio de autenticación {#adr-007}
+
+**Estado:** aceptada (2026-10-29)  
+**Contexto:** web-bff intercambia la cookie `SessionId` con el servicio de autenticación en cada
+petición y usa el `isLoggedIn` resultante para `audience_filter` y para Salesforce. ms-clp-blp heredó
+de ms-home el cliente y las variables `AUTH_*`, pero ninguna ruta lo llamaba: la página toma el
+logueado/invitado de `x-is-logged-in` y Salesforce V1 toma el id de `x-sf-user-id` cuando viaja una
+`SessionId` bien formada.  
+**Decisión:** quitar el cliente de autenticación, el intercambio, `profileId`/`accessToken` de
+`SessionContext` y las variables `AUTH_*`. La cookie `SessionId` solo se valida por formato, sin
+llamadas.  
+**Consecuencias:** cero llamadas a autenticación y 20 variables menos. El servicio no tiene identidad
+verificada del usuario: si un bloque llega a necesitarla, hay que reintroducir el intercambio. Los
+headers `x-auth-version`/`x-client-platform` siguen permitidos en CORS porque el navegador aún los
+manda.

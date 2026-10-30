@@ -47,12 +47,9 @@ public record SalesforceSettings(
     /**
      * Resolves the identity {@code products_list} sends to Salesforce as {@code ID_ATG1}.
      *
-     * <p><strong>Documented exception to ADR-033</strong> (see ADR-041). Every other Salesforce block
-     * personalises on {@link SessionContext#authenticatedProfileId()}, derived server-side from the
-     * {@code SessionId} exchange. Salesforce V1 carousels instead take the ATG profile id from the
-     * {@code x-sf-user-id} request header — the same header {@code ms_plp_search} and
-     * {@code ms_pdp_search} already send to this provider — so that a landing page resolves the same carousels
-     * they do.</p>
+     * <p>ADR-041: Salesforce V1 carousels take the ATG profile id from the {@code x-sf-user-id}
+     * request header — the same header {@code ms_plp_search} and {@code ms_pdp_search} already send
+     * to this provider — so that a landing page resolves the same carousels they do.</p>
      *
      * <p>Two conditions, both mandatory, and both cheap enough to check before any I/O:</p>
      * <ol>

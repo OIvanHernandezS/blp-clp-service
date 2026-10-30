@@ -7,42 +7,14 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit tests for {@link SessionContext}, focused on {@link SessionContext#authenticatedProfileId()}
- * — the guard ADR-033 introduced so a guest's anonymous id never leaks into a personalisation call
- * that expects a real identity.
+ * Unit tests for {@link SessionContext}: the login/guest accessors, the copy-with helpers and the
+ * header lookup.
  */
 class SessionContextTest {
 
     /** Non-empty, so a copy that dropped the component would fail the recursive comparison. */
     private static final CohortMarkers MARKERS =
             new CohortMarkers(Map.of("x-ab-carousel", true), Map.of("ab_carousel", false));
-
-    @Test
-    void authenticatedProfileId_authenticatedSession_returnsProfileId() {
-        SessionContext session = new SessionContext(true, "LP", "WEB", "es-mx", "31216912118", Map.of());
-
-        assertThat(session.authenticatedProfileId()).isEqualTo("31216912118");
-    }
-
-    /**
-     * The regression this test guards: {@code AuthTokenExchangeAdapter} sets {@code profileId} to
-     * the anonymous id for a guest with a successfully-exchanged anonymous token — {@code
-     * profileId()} alone is non-null there, so a naive caller reading it directly would send a
-     * guest's anonymous id to Salesforce as if it were a real ATG identity.
-     */
-    @Test
-    void authenticatedProfileId_guestSessionWithAnonymousProfileId_returnsNull() {
-        SessionContext session = new SessionContext(false, "LP", "WEB", "es-mx", "anon-abc123", Map.of());
-
-        assertThat(session.authenticatedProfileId()).isNull();
-    }
-
-    @Test
-    void authenticatedProfileId_guestSessionWithNullProfileId_returnsNull() {
-        SessionContext session = new SessionContext(false, "LP", "WEB", "es-mx");
-
-        assertThat(session.authenticatedProfileId()).isNull();
-    }
 
     @Test
     void isGuest_authenticatedSession_returnsFalse() {
@@ -60,14 +32,14 @@ class SessionContextTest {
 
     /**
      * Regression: when {@code GET /blp|clp/**} still resolved brand from a query param it rebuilt the record
-     * with a constructor, which dropped {@code sessionId} the moment it was added — the shortcuts
-     * service then saw no cookie and was never called. Every component but {@code brand} must survive
+     * with a constructor, which dropped {@code sessionId} the moment it was added. Every component
+     * but {@code brand} must survive
      * the copy, so that the next caller that needs a re-branded context cannot repeat it.
      */
     @Test
     void withBrand_replacesBrandAndCarriesEveryOtherComponent() {
-        SessionContext session = new SessionContext(true, "LP", "APPS", "es-mx", "prn-1",
-                Map.of("x-jml-user-id", "jml-1"), "sid.raw%2Bvalue", "token-1", MARKERS);
+        SessionContext session = new SessionContext(true, "LP", "APPS", "es-mx",
+                Map.of("x-jml-user-id", "jml-1"), "sid.raw%2Bvalue", MARKERS);
 
         SessionContext copy = session.withBrand("SB");
 
@@ -76,14 +48,13 @@ class SessionContextTest {
     }
 
     /**
-     * {@code GET /blp|clp/**} never calls the auth service (ADR-067): it folds the caller's {@code x-is-logged-in}
-     * declaration into an otherwise guest-shaped context via this method rather than reconstructing
-     * the record by hand — same rationale as {@link #withBrand_replacesBrandAndCarriesEveryOtherComponent()}.
+     * {@code GET /blp|clp/**} (ADR-067) folds the caller's {@code x-is-logged-in} declaration into an
+     * otherwise guest-shaped context via this method rather than reconstructing the record by hand — same rationale as {@link #withBrand_replacesBrandAndCarriesEveryOtherComponent()}.
      */
     @Test
     void withAuthenticated_replacesAuthenticatedAndCarriesEveryOtherComponent() {
-        SessionContext session = new SessionContext(false, "LP", "APPS", "es-mx", "prn-1",
-                Map.of("x-jml-user-id", "jml-1"), "sid.raw%2Bvalue", "token-1", MARKERS);
+        SessionContext session = new SessionContext(false, "LP", "APPS", "es-mx",
+                Map.of("x-jml-user-id", "jml-1"), "sid.raw%2Bvalue", MARKERS);
 
         SessionContext copy = session.withAuthenticated(true);
 
@@ -93,8 +64,8 @@ class SessionContextTest {
 
     @Test
     void header_lookupIsCaseInsensitive() {
-        SessionContext session = new SessionContext(true, "LP", "WEB", "es-mx", null,
-                Map.of("x-jml-user-id", "jml-1"));
+        SessionContext session = new SessionContext(true, "LP", "WEB", "es-mx",
+                Map.of("x-jml-user-id", "jml-1"), null);
 
         assertThat(session.header("X-JML-USER-ID")).isEqualTo("jml-1");
     }

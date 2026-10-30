@@ -34,7 +34,7 @@ public record OutboundLoggingProperties(boolean feignEnabled, List<String> expec
 	 * <p>Blank and {@code null} elements are dropped — {@code List.copyOf} would throw on the latter,
 	 * which would turn a stray comma in an environment variable into a service that does not start.
 	 * Malformed-but-present entries are deliberately <em>kept</em>: they can never match anything (a
-	 * rule is compared whole, so {@code "auth"} is not {@code "auth:404"}), and keeping them means a
+	 * rule is compared whole, so {@code "store"} is not {@code "store:404"}), and keeping them means a
 	 * typo still shows up in the startup line where someone can see it, instead of vanishing.</p>
 	 */
 	public OutboundLoggingProperties {
@@ -47,10 +47,9 @@ public record OutboundLoggingProperties(boolean feignEnabled, List<String> expec
 	/**
 	 * Whether this provider answering with this status is a normal business outcome rather than a
 	 * failure. A match suppresses the {@code UPSTREAM_CALL_FAILED} WARN: the adapter that understands
-	 * the answer already reports it (auth's 401/404 becomes {@code SESSION_DEGRADED_TO_GUEST}), so
-	 * logging it here too would report the same case twice.
+	 * the answer already reports it, so logging it here too would report the same case twice.
 	 *
-	 * <p>A pair, never a provider alone: {@code auth:500} is a real outage and must still be logged.
+	 * <p>A pair, never a provider alone: {@code store:500} is a real outage and must still be logged.
 	 * A malformed entry is ignored, never read as "suppress everything".</p>
 	 *
 	 * @param provider the upstream name, as {@code FeignOutboundLogger.upstreamOf} derives it

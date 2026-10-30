@@ -39,7 +39,7 @@ class ProductsListSalesforceV2BlockResolverTest {
 
     /** No SessionId cookie on purpose: V2 identity is header passthrough, unlike V1's ADR-041 gate. */
     private static final SessionContext SESSION = new SessionContext(
-            false, "LP", "WEB", "es-mx", null,
+            false, "LP", "WEB", "es-mx",
             Map.of("x-sf-user-id", "user-1", "x-sf-device-id", "dev-1"), null);
 
     private static final Map<String, Object> V2_BLOCK = Map.of(

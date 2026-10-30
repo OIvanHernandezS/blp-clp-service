@@ -35,8 +35,6 @@ public class OpenApiConfig {
     private static final String HEADER_BRAND_ID = "x-brand-id";
     private static final String HEADER_CHANNEL = "x-channel";
     private static final String HEADER_LOCALE = "x-locale";
-    private static final String HEADER_AUTH_VERSION = "x-auth-version";
-    private static final String HEADER_CLIENT_PLATFORM = "x-client-platform";
     private static final String COOKIE_SESSION_ID = "SessionId";
     private static final String HEADER_APP_VERSION = "x-app-version";
 
@@ -93,17 +91,10 @@ public class OpenApiConfig {
             operation.addParametersItem(header(HEADER_BRAND_ID,
                     "Brand identifier. Falls back to the configured default brand when absent.", "LP"));
             operation.addParametersItem(header(HEADER_CHANNEL,
-                    "Originating channel: WEB, APP, KIOSCO or POS (KIOSCO and POS behave as WEB). Derives "
-                            + "the auth tenant (WEB/KIOSCO/POS -> web, APP -> app); when absent or unknown "
-                            + "the session is still exchanged, with tenant web.", "WEB"));
+                    "Originating channel: WEB, APP, KIOSCO or POS (KIOSCO and POS behave as WEB). "
+                            + "Defaults to WEB when absent.", "WEB"));
             operation.addParametersItem(header(HEADER_LOCALE,
                     "Content locale used to select the CMS entry.", "es-mx"));
-            operation.addParametersItem(header(HEADER_AUTH_VERSION,
-                    "Auth contract version for the session exchange (e.g. 3). Used when it is one of the "
-                            + "supported versions (AUTH_SUPPORTED_VERSIONS); absent or unsupported -> the "
-                            + "default version (2).", "3"));
-            operation.addParametersItem(header(HEADER_CLIENT_PLATFORM,
-                    "Client platform (web|android|ios), forwarded to the auth service only.", "web"));
             operation.addParametersItem(sessionCookie());
             return operation;
         };
@@ -143,8 +134,8 @@ public class OpenApiConfig {
     private CookieParameter sessionCookie() {
         return (CookieParameter) new CookieParameter()
                 .name(COOKIE_SESSION_ID)
-                .description("Opaque session id. Exchanged with the auth service; its presence upgrades "
-                        + "the request to authenticated and personalises dynamic blocks.")
+                .description("Opaque session id. Only its presence and format are checked (never "
+                        + "exchanged): it gates Salesforce V1 carousels and the signed-in edge-cache slot.")
                 .required(false)
                 .schema(new StringSchema())
                 .example("a1b2c3d4-....");

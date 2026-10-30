@@ -6,6 +6,7 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 import com.liverpool.ms_clp_blp.landing.models.BlockType;
+import com.liverpool.ms_clp_blp.landing.models.SourceOfData;
 
 /**
  * Produces the client-facing content map for a block from its raw Contentstack attributes.
@@ -24,6 +25,8 @@ import com.liverpool.ms_clp_blp.landing.models.BlockType;
 @Component
 public class BlockContentNormalizer {
 
+    private static final String ATTR_SOURCE_OF_DATA = "source_of_data";
+
     /**
      * Returns a mutable, insertion-ordered copy of the raw block attributes with every CMS field
      * retained (digital_bff parity, Rule 19).
@@ -36,15 +39,24 @@ public class BlockContentNormalizer {
     }
 
     /**
-     * Type-aware entry point kept so every block shape goes through one call: no landing block type
-     * needs more than the defensive copy today, and a type that one day does is reshaped here rather
-     * than in the mapper.
+     * Type-aware entry point, so every block shape goes through one call.
+     *
+     * <p>The one reshaping today: a {@code products_list} authored as the legacy
+     * {@code source_of_data: groupby} is published as {@code vertex}, the provider that actually
+     * resolves it (ADR-055) — exactly what digital_bff's Vertex strategy writes back onto the block.
+     * Only the published content changes: {@code ms_params} is projected from the raw attributes, so
+     * the lazy call still carries what the CMS authored.</p>
      *
      * @param blockType  the classified block type
      * @param attributes raw CMS attributes
      * @return a mutable content map
      */
     public Map<String, Object> normalize(BlockType blockType, Map<String, Object> attributes) {
-        return normalize(attributes);
+        Map<String, Object> content = normalize(attributes);
+        if (blockType == BlockType.PRODUCTS_LIST
+                && SourceOfData.from(content.get(ATTR_SOURCE_OF_DATA)) == SourceOfData.GROUPBY) {
+            content.put(ATTR_SOURCE_OF_DATA, SourceOfData.VERTEX.token());
+        }
+        return content;
     }
 }

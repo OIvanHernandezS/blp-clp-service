@@ -74,8 +74,7 @@ public class FeignLoggingConfig {
 	 * <p>A suppression list nobody can see is how errors get lost quietly: an environment with a
 	 * mistyped or over-broad {@code OUTBOUND_EXPECTED_FAILURES} would look exactly like an
 	 * environment where nothing is going wrong. One INFO line at startup makes the configuration a
-	 * fact an incident can read instead of something it has to infer — the same argument, and the
-	 * same shape, as {@link LogEvents#AUTH_BRAND_HOSTS_LOADED}.</p>
+	 * fact an incident can read instead of something it has to infer.</p>
 	 *
 	 * <p>Logged from this configuration rather than from the logger itself so it happens once per
 	 * instance, never once per call.</p>

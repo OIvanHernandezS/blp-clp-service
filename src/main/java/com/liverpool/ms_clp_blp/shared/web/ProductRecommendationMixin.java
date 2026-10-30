@@ -16,8 +16,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *   <li><strong>{@code isMarketplace}</strong> — the field is {@code isMarketplace} with a Lombok
  *       getter {@code isMarketplace()}. Jackson strips the {@code is} prefix from boolean getters, so
  *       the property would serialize as {@code marketplace}. The explicit name restores it.</li>
- *   <li><strong>{@code mainCategory}</strong> — exists on the shared DTO but not on the legacy
- *       {@code ProductDto}, so it must not appear on the wire.</li>
+ *   <li><strong>{@code mainCategory}</strong> — exists on the shared DTO, but digital_bff publishes it
+ *       for Vertex only, so it is hidden here and {@code VertexProductRecommendation} lifts the
+ *       ignoral for that one provider.</li>
  *   <li><strong>null handling</strong> — the legacy response is JavaScript, where absent fields are
  *       simply omitted (e.g. {@code discountLabel} on Salesforce products, {@code isCollectionProduct}
  *       everywhere on the storefront). {@code NON_NULL} reproduces that instead of emitting {@code null}.</li>

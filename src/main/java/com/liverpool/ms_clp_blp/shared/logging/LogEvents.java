@@ -63,9 +63,8 @@ public enum LogEvents {
 
     /**
      * Startup summary of the outbound outcomes this instance will not treat as failures (ADR-062).
-     * INFO, for the same reason as {@link #AUTH_BRAND_HOSTS_LOADED}: a suppression list nobody can
-     * see is how errors get lost quietly, so the configuration must survive a production log level
-     * rather than being something an incident has to infer.
+     * INFO: a suppression list nobody can see is how errors get lost quietly, so the configuration
+     * must survive a production log level rather than being something an incident has to infer.
      */
     OUTBOUND_EXPECTED_FAILURES_LOADED(Level.INFO),
 
@@ -79,43 +78,6 @@ public enum LogEvents {
      * when a breaker opened, how many times it flapped, and when it recovered.
      */
     CIRCUIT_BREAKER_STATE_CHANGED(Level.WARN),
-
-    /** Token exchange failed; the request continues as a guest session. */
-    SESSION_DEGRADED_TO_GUEST(Level.WARN),
-
-    /**
-     * {@code x-channel} was missing or not one of the defined channels
-     * ({@code WEB}/{@code APP}/{@code KIOSCO}/{@code POS}); the exchange still runs, with the default
-     * {@code tenant} ({@code web}, ADR-070). Carries {@code channel} with the raw value received, so the
-     * clients that do not send it yet can be counted. DEBUG: nothing degrades.
-     */
-    AUTH_CHANNEL_UNDEFINED(Level.DEBUG),
-
-    /**
-     * The caller's {@code x-auth-version} is not a supported contract (not a number, or not listed in
-     * {@code AUTH_SUPPORTED_VERSIONS}); the exchange runs on the default version instead. Carries
-     * {@code requestedVersion} and {@code authVersion}.
-     */
-    AUTH_VERSION_UNSUPPORTED(Level.DEBUG),
-
-    /**
-     * The caller's {@code x-client-platform} does not belong to the tenant its {@code x-channel}
-     * resolves to (e.g. {@code APP} with {@code web}). Advisory: the exchange still runs with the
-     * platform as sent, because the auth service is the one that decides.
-     */
-    AUTH_PLATFORM_CHANNEL_MISMATCH(Level.WARN),
-
-    /**
-     * Startup summary of the per-brand auth origins in effect. Says on boot whether the Host-routing
-     * workaround is active and for which brands, so an incident does not have to guess from config.
-     */
-    AUTH_BRAND_HOSTS_LOADED(Level.INFO),
-
-    /**
-     * A configured per-brand auth origin was rejected at startup and dropped. The brand falls back to
-     * {@code auth.base-url}, so this is a misconfiguration to fix, not an outage.
-     */
-    AUTH_BRAND_HOST_INVALID(Level.WARN),
 
     /**
      * Contentstack answered a CMS read, recording which branch and environment served it. DEBUG, not

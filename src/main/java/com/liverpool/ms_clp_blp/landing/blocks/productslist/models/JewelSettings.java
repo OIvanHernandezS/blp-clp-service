@@ -7,9 +7,7 @@ import com.liverpool.ms_clp_blp.landing.models.SourceOfData;
  *
  * <p>{@code userId}/{@code deviceId} are Jewel-specific tracking identifiers carried by the
  * {@code x-jml-user-id}/{@code x-jml-device-id} request headers (configurable — see
- * {@code JewelProperties}) — distinct from the {@code SessionId}-exchanged {@code profileId} used for
- * Salesforce (ADR-033). Jewel's identity is genuine header passthrough by design, unchanged by
- * ADR-033. Either may be absent depending on the session and client; whether an absent value blocks
+ * {@code JewelProperties}). Jewel's identity is genuine header passthrough by design. Either may be absent depending on the session and client; whether an absent value blocks
  * resolution is decided by the block's own {@link JewelModelConfig}, not by service configuration
  * (ADR-022).</p>
  *

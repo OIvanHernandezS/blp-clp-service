@@ -41,13 +41,13 @@ class ProductsListSalesforceBlockResolverTest {
 
     /** The supported shape (ADR-041): a SessionId cookie travelled AND the header carries the id. */
     private static final SessionContext WITH_HEADER = new SessionContext(
-            true, "LP", "WEB", "es-mx", "u9", Map.of(USER_ID_HEADER, "31216912118"), SESSION_ID);
+            true, "LP", "WEB", "es-mx", Map.of(USER_ID_HEADER, "31216912118"), SESSION_ID);
     /** Session present, header absent — Salesforce has no id to personalise on. */
     private static final SessionContext NO_HEADER = new SessionContext(
-            true, "LP", "WEB", "es-mx", "u9", Map.of(), SESSION_ID);
+            true, "LP", "WEB", "es-mx", Map.of(), SESSION_ID);
     /** Header present but no SessionId cookie — Salesforce V1 only serves logged-in shoppers. */
     private static final SessionContext NO_SESSION = new SessionContext(
-            false, "LP", "WEB", "es-mx", null, Map.of(USER_ID_HEADER, "31216912118"), null);
+            false, "LP", "WEB", "es-mx", Map.of(USER_ID_HEADER, "31216912118"), null);
 
     @Mock
     private ProductsListService productsListService;

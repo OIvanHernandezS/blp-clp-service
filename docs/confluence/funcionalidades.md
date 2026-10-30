@@ -4,7 +4,7 @@ title: "Funcionalidades"
 type: overview
 status: current
 owner: equipo-search-browse
-lastReviewed: 2026-10-27
+lastReviewed: 2026-10-29
 sources:
   - src/main/java/com/liverpool/ms_clp_blp/landing/
 tags: [funcionalidades, index, curl]
@@ -43,6 +43,11 @@ export MS_CLP_BLP_PASS="<contraseña>"
 
 # Tienda favorita (cookie favoriteStore). Sin definir = sin tienda.
 export MS_CLP_BLP_STORE="7"
+
+# Cookie SessionId de una sesión real (<uuid>.<firma>). Solo se valida su formato: habilita los
+# carruseles de Salesforce V1 y el esqueleto cacheable del logueado. Es un secreto: no la pegues en
+# tickets ni en chats.
+export MS_CLP_BLP_SESSION_ID="<SessionId>"
 ```
 
 Para no repetir la credencial en cada comando, esta terminal (y solo esta) la toma de un `.curlrc`

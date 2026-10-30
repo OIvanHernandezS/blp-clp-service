@@ -27,10 +27,9 @@ import com.liverpool.ms_clp_blp.landing.models.BlockResolutionKey;
  *       key names and nesting, so the endpoint parses a slimmed body with exactly the same code that
  *       parses a full one. This is what lets a frontend that still posts the whole block and one that
  *       posts only {@code ms_params} coexist during rollout.</li>
- *   <li><strong>CMS-only and session-free.</strong> Identity never belongs here: Salesforce personalises
- *       on {@code session.authenticatedProfileId()} (ADR-033) and Jewel on its tracking headers, neither
- *       of which is read from the request body. Putting either in {@code ms_params} would hand the
- *       client control of an identity the server already resolves.</li>
+ *   <li><strong>CMS-only and session-free.</strong> Identity never belongs here: Salesforce and Jewel
+ *       personalise on request headers (ADR-041), never on the request body. Putting identity in
+ *       {@code ms_params} would make it part of a body the edge may cache and share.</li>
  *   <li><strong>Verbatim values.</strong> Copy what the CMS published without coercing it — {@code "6"}
  *       stays the string {@code "6"} — so the endpoint's lenient readers
  *       ({@link com.liverpool.ms_clp_blp.landing.models.BlockAttributes}) see the same input either way.</li>

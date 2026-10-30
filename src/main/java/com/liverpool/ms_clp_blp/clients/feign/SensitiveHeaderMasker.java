@@ -27,7 +27,7 @@ final class SensitiveHeaderMasker {
 	private static final Pattern HEADER_LINE = Pattern.compile(
 			"(?i)('?(?:" + SENSITIVE_NAMES + ")'?)(\\s*:\\s*)(\\[?)([^\\]\\r\\n]*)(\\]?)");
 
-	/** {@code ?SessionId=abc&…} — the auth exchange carries it in the query string. */
+	/** {@code ?SessionId=abc&…} — session ids and keys must never reach a log via a query string. */
 	private static final Pattern QUERY_PARAM = Pattern.compile(
 			"(?i)([?&](?:sessionid|apikey|api-key|token)=)([^&\\s]*)");
 

@@ -78,3 +78,7 @@ __pycache__/
 .env.example.qa
 .env.example.prod
 .env.example.*
+.env.*
+!.env.example
+# web-bff parity E2E runs (scripts/e2e-web-bff-parity-check/e2e-test.sh)
+scripts/e2e-web-bff-parity-check/out/

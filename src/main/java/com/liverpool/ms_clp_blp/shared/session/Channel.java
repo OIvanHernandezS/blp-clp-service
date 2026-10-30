@@ -1,7 +1,6 @@
 package com.liverpool.ms_clp_blp.shared.session;
 
 import java.util.Locale;
-import java.util.Optional;
 
 /**
  * Classifies the raw {@code x-channel} request header into the small, closed set this service
@@ -10,7 +9,7 @@ import java.util.Optional;
  * {@code ShortcutsUseCases} and {@code LandingCompositionService} each re-declared their own local
  * {@code "APPS"} literal, and diverged: the real client contract is {@code APP} (singular), which
  * three of the four sites got wrong. Every future channel-branching call site must go through
- * {@link #from(String)} or {@link #parse(String)} rather than adding a fifth local copy.
+ * {@link #from(String)} rather than adding a fifth local copy.
  *
  * <h3>The four defined channels</h3>
  * <p>{@code WEB}, {@code APP}, {@code KIOSCO} and {@code POS}. Kiosk and point-of-sale clients render
@@ -18,14 +17,8 @@ import java.util.Optional;
  * ({@link #isWebLike()}); they stay distinct values so usage metrics can tell them apart and so a
  * later divergence is a one-line change here rather than a hunt for call sites.</p>
  *
- * <h3>Two entry points, on purpose</h3>
- * <ul>
- *   <li>{@link #from(String)} is lenient: a missing header reads as {@link #WEB}. It backs content
- *       visibility and metrics, where every request needs an answer.</li>
- *   <li>{@link #parse(String)} is strict: a missing or unrecognised header has <em>no</em> channel.
- *       It backs the auth {@code tenant}, which must never be guessed — exchanging a session with the
- *       wrong tenant/client is worse than not exchanging it at all.</li>
- * </ul>
+ * <p>{@link #from(String)} is lenient: a missing header reads as {@link #WEB}. It backs content
+ * visibility, where every request needs an answer.</p>
  *
  * <p>Deliberately dependency-free (no Spring, no jakarta): {@code EndpointUsageMetricsFilter} runs
  * on every request, including ones that never reach a handler, and must not pay for a
@@ -45,21 +38,6 @@ public enum Channel {
             return WEB;
         }
         return classify(raw);
-    }
-
-    /**
-     * Strict counterpart of {@link #from(String)}: never infers a channel the caller did not send.
-     *
-     * @param raw the {@code x-channel} header value, or {@code null}/blank when absent
-     * @return the matching defined channel (case-insensitive), or empty when the header is absent,
-     *         blank, or not one of {@code WEB}/{@code APP}/{@code KIOSCO}/{@code POS}
-     */
-    public static Optional<Channel> parse(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return Optional.empty();
-        }
-        Channel channel = classify(raw);
-        return channel == OTHER ? Optional.empty() : Optional.of(channel);
     }
 
     /**

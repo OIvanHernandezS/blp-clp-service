@@ -4,7 +4,7 @@ title: "Desarrollo y despliegue"
 type: how-to
 status: current
 owner: equipo-search-browse
-lastReviewed: 2026-10-27
+lastReviewed: 2026-10-29
 sources:
   - pom.xml
   - Dockerfile
@@ -51,6 +51,21 @@ Convenciones: el árbol de pruebas refleja el de `main`; `<Clase>Test` para unit
 para un cliente Feign contra WireMock, `*EndToEndFeignTest` para el stack completo.
 `LandingEndToEndFeignTest` compone la entrada real de `page_blp` capturada de producción
 (`src/test/resources/fixtures/page-blp-catst26617625.json`) contra stubs de todos los sistemas.
+
+## Paridad de datos contra web-bff
+
+Antes de mover tráfico de web-bff a ms-clp-blp, o después de tocar un proveedor de carrusel, el
+indexador o el mapeo de productos, corre la prueba E2E contra el ambiente real:
+
+```bash
+scripts/e2e-web-bff-parity-check/e2e-test.sh --prod   # o --dev / --qa
+```
+
+Levanta el servicio con el `.env.<ambiente>` de la raíz y, para cada página de
+`scripts/e2e-web-bff-parity-check/categories-to-test.csv`, compara los **datos** de web-bff contra el
+`GET` de ms-clp-blp más las llamadas lazy que haría el frontend. Deja `report.md` con las rutas JSON
+que difieren y termina con código `1` si hay diferencias. Opciones, salida y cómo leer cada diferencia:
+`scripts/README.md`, sección «Paridad E2E de datos contra web-bff».
 
 # Git hooks
 
