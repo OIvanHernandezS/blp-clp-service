@@ -19,8 +19,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Drops the CORS-contributed {@code Vary} values from the three edge-cacheable GET responses, so
- * Akamai will store them at all.
+ * Drops the CORS-contributed {@code Vary} values from the edge-cacheable GET responses (the landing
+ * pages and {@code /categories}), so Akamai will store them at all.
  *
  * <p>Akamai does not cache a response whose {@code Vary} is anything other than a lone
  * {@code Accept-Encoding}. Spring's CORS support emits three values ({@code Origin},
@@ -59,7 +59,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class CorsVaryFilter extends OncePerRequestFilter {
 
     /** Path prefixes whose GET responses the edge is expected to cache. */
-    private static final List<String> CACHEABLE_PREFIXES = List.of("/blp/", "/clp/");
+    private static final List<String> CACHEABLE_PREFIXES = List.of("/blp/", "/clp/", "/categories");
 
     /**
      * The values Spring's CORS support contributes to {@code Vary}. Compared case-insensitively:
@@ -71,8 +71,8 @@ public class CorsVaryFilter extends OncePerRequestFilter {
             HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS.toLowerCase());
 
     /**
-     * Applies only to GETs on the landing page routes; every other request keeps its {@code Vary}
-     * exactly as Spring wrote it.
+     * Applies only to GETs on the landing page routes and {@code /categories}; every other request
+     * keeps its {@code Vary} exactly as Spring wrote it.
      */
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {

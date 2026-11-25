@@ -74,6 +74,7 @@ class LandingEndToEndFeignTest {
 	private static final String PAGE_CLP_ENTRIES = "/v3/content_types/page_clp/entries";
 	private static final String REDIRECT_ENTRIES = "/v3/content_types/category_redirect/entries";
 	private static final String INDEXER_PATH = "/search-category/LP/catst26617625";
+	private static final String CATEGORIES_INDEXER_PATH = "/search-category/LP/cat5020010";
 	private static final String BLACKLIST_PATH = "/catalog-ingestion-service/v1/blacklist/LIVERPOOL";
 
 	/** The guest Vertex carousel authored on the page (products_data.category = catst26617625). */
@@ -103,6 +104,8 @@ class LandingEndToEndFeignTest {
 		wireMock.stubFor(get(urlPathEqualTo(REDIRECT_ENTRIES)).willReturn(json("{\"entries\":[]}")));
 		wireMock.stubFor(post(urlPathEqualTo(INDEXER_PATH))
 				.willReturn(json(fixture("category-tree-catst26617625.json"))));
+		wireMock.stubFor(post(urlPathEqualTo(CATEGORIES_INDEXER_PATH))
+				.willReturn(json(fixture("category-tree-cat5020010.json"))));
 		wireMock.stubFor(post(urlPathEqualTo("/v2/search"))
 				.willReturn(json(fixture("vertex-search-catst26617625.json"))));
 		wireMock.stubFor(get(urlPathEqualTo("/brands/LP/stores/7"))
@@ -289,6 +292,67 @@ class LandingEndToEndFeignTest {
 		wireMock.verify(getRequestedFor(urlPathEqualTo(PAGE_BLP_ENTRIES))
 				.withHeader("api_key", equalTo("api-key-lp"))
 				.withQueryParam("query", equalTo("{\"category_id\":{\"$in\":[\"catst26617625\"]}}")));
+	}
+
+	// ── GET /categories ──────────────────────────────────────────────────────────────────────────
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void categories_servesTheIndexerCategory_withVisibleChildrenAndTheirTileData() throws Exception {
+		HttpResponse<String> response = call("/categories?categoryId=cat5020010", "true", null);
+
+		assertThat(response.statusCode()).isEqualTo(200);
+		assertThat(response.headers().firstValue("Cache-Control")).hasValue("public");
+		Map<String, Object> body = MAPPER.readValue(response.body(), Map.class);
+		assertThat(body)
+				.containsEntry("id", "CAT5020010")
+				.containsEntry("name", "Ropa para hombre")
+				.containsEntry("breadcrumb", "home > Hombre > Ropa para hombre")
+				.doesNotContainKey("redirectContent");
+
+		List<Map<String, Object>> children = (List<Map<String, Object>>) body.get("children");
+		assertThat(children).extracting(child -> child.get("name")).containsExactly("Camisas", "Pantalones");
+		Map<String, Object> camisas = (Map<String, Object>) children.get(0).get("metadata");
+		assertThat(camisas)
+				.containsEntry("imageUrl", "https://ss201.liverpool.com.mx/xl/cat5020011.jpg")
+				.containsEntry("categoryImage", "https://ss201.liverpool.com.mx/xl/cat5020011-cat.jpg")
+				.containsEntry("title", "Camisas");
+		// A child with no image keeps the legacy "" so the storefront renders its placeholder tile.
+		assertThat((Map<String, Object>) children.get(1).get("metadata")).containsEntry("imageUrl", "");
+		wireMock.verify(0, getRequestedFor(urlPathEqualTo(REDIRECT_ENTRIES)));
+	}
+
+	/** The indexer's navigation data rides on every child, so the storefront can move between categories. */
+	@Test
+	@SuppressWarnings("unchecked")
+	void categories_everyChildCarriesTheIndexersNavigationData() throws Exception {
+		Map<String, Object> body = MAPPER.readValue(
+				call("/categories?categoryId=cat5020010", "false", null).body(), Map.class);
+		List<Map<String, Object>> children = (List<Map<String, Object>>) body.get("children");
+
+		assertThat(children.get(0)).containsEntry("urlAddress", "/tienda/camisas/cat5020011");
+		assertThat((Map<String, Object>) children.get(0).get("metadata"))
+				.containsEntry("viewUrl", "/tienda/camisas/cat5020011")
+				.containsEntry("showpath", "PLP")
+				.containsEntry("parentShowpath", "CLP")
+				.containsEntry("gpShowpath", "CLP")
+				.containsEntry("applyCLPRedirect", false);
+		assertThat((Map<String, Object>) children.get(1).get("metadata"))
+				.containsEntry("showpath", "CLP")
+				.containsEntry("applyCLPRedirect", true);
+	}
+
+	@Test
+	void categories_unknownCategory_returns404_thatTheEdgeNeverStores() throws Exception {
+		wireMock.stubFor(post(urlPathEqualTo("/search-category/LP/cat00000000")).atPriority(1)
+				.willReturn(aResponse().withStatus(404)));
+
+		HttpResponse<String> response = call("/categories?categoryId=cat00000000", "false", null);
+
+		assertThat(response.statusCode()).isEqualTo(404);
+		assertThat(response.body()).contains("CATEGORY_NOT_FOUND");
+		assertThat(response.headers().firstValue("Cache-Control")).hasValueSatisfying(
+				value -> assertThat(value).contains("no-store"));
 	}
 
 	// ── helpers ───────────────────────────────────────────────────────────────────────────────────

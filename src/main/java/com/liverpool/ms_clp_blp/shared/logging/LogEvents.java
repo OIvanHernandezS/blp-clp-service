@@ -98,9 +98,16 @@ public enum LogEvents {
     /**
      * The category indexer could not answer for this page's category. WARN, never fatal: the page is
      * served without {@code categoryData}, so a run of these explains landing pages with no
-     * breadcrumb or sub-category chips.
+     * breadcrumb or sub-category chips. On {@code GET /categories} it is the cause behind a
+     * {@code 404 CATEGORY_NOT_FOUND}.
      */
     CATEGORY_UNAVAILABLE(Level.WARN),
+
+    /**
+     * One-per-request summary of {@code GET /categories}: a category and its children were served.
+     * INFO, like {@link #LANDING_COMPOSED}; the edge absorbs repeats, so only origin hits log it.
+     */
+    CATEGORY_SERVED(Level.INFO),
 
     /** The CMS redirect lookup for a category failed; the page is served without one. */
     CATEGORY_REDIRECT_UNAVAILABLE(Level.WARN),

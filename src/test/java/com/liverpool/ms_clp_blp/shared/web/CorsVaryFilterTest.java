@@ -78,8 +78,8 @@ class CorsVaryFilterTest {
     }
 
     @Test
-    void appliesToBothLandingRoutesAndToTheirTrailingSlashForm() throws Exception {
-        for (String uri : List.of(BLP, CLP, BLP + "/")) {
+    void appliesToTheLandingAndCategoryRoutesAndToTheirTrailingSlashForm() throws Exception {
+        for (String uri : List.of(BLP, CLP, BLP + "/", "/categories", "/categories/")) {
             assertThat(varyAfterFilter("GET", uri, "Origin", "Accept-Encoding"))
                     .as("Vary on GET %s", uri)
                     .containsExactly("Accept-Encoding");

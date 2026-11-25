@@ -48,6 +48,8 @@ pages:
         file: funcionalidades/paginas-blp-clp.md
       - title: Carruseles de productos
         file: funcionalidades/carruseles-de-productos.md
+      - title: Categoría e hijos
+        file: funcionalidades/categorias.md
 
   - title: Plataforma
     file: plataforma.md

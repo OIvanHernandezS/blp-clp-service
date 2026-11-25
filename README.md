@@ -12,6 +12,8 @@ on **Google Cloud Run** and holds no request state.
   `top_content`, `bottom_content`), and adds `categoryData` (category indexer tree + CMS redirect).
   Guests get every carousel inlined (`LANDING_EAGER_OFFSET_GUEST`, default 100); logged-in users get
   placeholders (`LANDING_EAGER_OFFSET_LOGGED`, default 0).
+- **`GET /categories?categoryId=…`** — one category with its visible children (image, title, URL and
+  metadata) from the category indexer, in the `categoryData` shape; `Cache-Control: public` for Akamai.
 - **`POST /blp/blocks/products-list`** / **`POST /clp/blocks/products-list`** — resolves `products_list`
   carousels in one batch against Vertex (also legacy `groupby`), Salesforce, Salesforce V2 or Jewel,
   picked per block by `source_of_data`, with blacklisted products removed.

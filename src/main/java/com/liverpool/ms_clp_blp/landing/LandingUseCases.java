@@ -8,8 +8,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import com.liverpool.ms_clp_blp.landing.errors.CategoryNotFoundException;
 import com.liverpool.ms_clp_blp.landing.errors.LandingDefinitionNotFoundException;
 import com.liverpool.ms_clp_blp.landing.models.CategoryData;
 import com.liverpool.ms_clp_blp.landing.models.ContentQuery;
@@ -24,6 +27,8 @@ import com.liverpool.ms_clp_blp.landing.ports.ContentPort;
 import com.liverpool.ms_clp_blp.landing.ports.FavoriteStorePort;
 import com.liverpool.ms_clp_blp.landing.ports.LandingService;
 import com.liverpool.ms_clp_blp.shared.errors.ValidationException;
+import com.liverpool.ms_clp_blp.shared.logging.LogEvents;
+import com.liverpool.ms_clp_blp.shared.logging.LogFields;
 import com.liverpool.ms_clp_blp.shared.logging.MdcPropagation;
 
 /**
@@ -51,6 +56,8 @@ import com.liverpool.ms_clp_blp.shared.logging.MdcPropagation;
  */
 @Service
 public class LandingUseCases implements LandingService {
+
+    private static final Logger log = LoggerFactory.getLogger(LandingUseCases.class);
 
     private static final String KEY_HAS_REDIRECT = "hasRedirect";
 
@@ -109,6 +116,30 @@ public class LandingUseCases implements LandingService {
             // digital_bff attached categoryData only when the entry itself names a category.
             return definition.categoryId() == null ? page : page.withCategoryData(join(category).orElse(null));
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Only the category indexer is read: the navigation data the storefront needs to move between
+     * categories ({@code viewUrl}, {@code showpath}, {@code applyCLPRedirect}) travels on every node of
+     * the indexer's tree. The Contentstack {@code category_redirect} entry is deliberately not read, so
+     * this endpoint never depends on the CMS.</p>
+     *
+     * @throws CategoryNotFoundException when the indexer gives no category (unknown id or indexer down)
+     */
+    @Override
+    public CategoryData getCategory(String brand, String categoryId) {
+        CategoryData category = categoryPort.findCategory(brand, categoryId)
+                .orElseThrow(() -> new CategoryNotFoundException(
+                        "The category could not be found.",
+                        "brand=" + brand + " categoryId=" + categoryId));
+        LogEvents.at(log, LogEvents.CATEGORY_SERVED)
+                .addKeyValue(LogFields.BRAND, brand)
+                .addKeyValue(LogFields.CATEGORY_ID, categoryId)
+                .addKeyValue(LogFields.CHILDREN_COUNT, category.children().size())
+                .log("Category served");
+        return category;
     }
 
     // ── private ──────────────────────────────────────────────────────────────────────────────────

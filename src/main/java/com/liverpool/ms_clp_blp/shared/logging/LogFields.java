@@ -47,6 +47,8 @@ public final class LogFields {
     public static final String EAGER_DEDUPLICATED = "eagerDeduplicated";
     /** The category a landing page is authored for. */
     public static final String CATEGORY_ID = "categoryId";
+    /** {@code CATEGORY_SERVED}: how many children the served category carries. */
+    public static final String CHILDREN_COUNT = "childrenCount";
     /** The store id carried by the {@code favoriteStore} cookie. */
     public static final String STORE_ID = "storeId";
     /** Products removed from a carousel by the blacklist. */

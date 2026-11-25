@@ -235,6 +235,7 @@ curl -s "$MS_CLP_BLP_URL/blp/es-mx/tienda/esteelauder/catst26617625?eagerOffset=
 - [ADR-002 — Sin `globalData`](../reference/adrs.md#adr-002)
 - [ADR-003 — `categoryData` es de mejor esfuerzo también en CLP](../reference/adrs.md#adr-003)
 - [ADR-005 — Tienda favorita solo por cookie](../reference/adrs.md#adr-005)
+- [Categoría e hijos](categorias.md): `GET /categories`, el mismo `categoryData` sin la página.
 - Código: `landing/LandingUseCases.java`, `landing/LandingCompositionService.java`,
   `landing/adapters/contentstack/LandingContentClient.java`,
   `landing/adapters/categoryindexer/CategoryTreeMapper.java`

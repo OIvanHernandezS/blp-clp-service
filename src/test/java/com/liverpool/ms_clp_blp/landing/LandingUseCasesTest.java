@@ -7,6 +7,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.liverpool.ms_clp_blp.landing.errors.CategoryNotFoundException;
 import com.liverpool.ms_clp_blp.landing.errors.LandingDefinitionNotFoundException;
 import com.liverpool.ms_clp_blp.landing.models.CategoryData;
 import com.liverpool.ms_clp_blp.landing.models.ContentQuery;
@@ -173,6 +174,33 @@ class LandingUseCasesTest {
         when(categoryPort.findCategory(any(), any())).thenThrow(new IllegalStateException("defect"));
 
         assertThat(useCases.getLandingPage(query(PageType.BLP, PATH, null)).categoryData()).isNull();
+    }
+
+    // ── GET /categories ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    void getCategory_returnsTheIndexersCategory_forTheBrandAndId() {
+        assertThat(useCases.getCategory("LP", "catst26617625")).isSameAs(CATEGORY);
+
+        verify(categoryPort).findCategory("LP", "catst26617625");
+    }
+
+    /** The redirect that applies here is the indexer's applyCLPRedirect; the CMS is never read. */
+    @Test
+    void getCategory_neverReadsTheCmsRedirect() {
+        useCases.getCategory("LP", "catst26617625");
+
+        verify(redirectPort, never()).findActiveRedirect(any(), any(), any());
+        verify(contentPort, never()).fetchDefinition(any());
+    }
+
+    @Test
+    void getCategory_noCategoryFromTheIndexer_isNotFound() {
+        when(categoryPort.findCategory("LP", "catst00000001")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> useCases.getCategory("LP", "catst00000001"))
+                .isInstanceOf(CategoryNotFoundException.class)
+                .hasMessage("The category could not be found.");
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────────────────────

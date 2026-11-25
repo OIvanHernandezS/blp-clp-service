@@ -21,6 +21,12 @@ public final class ErrorCodes {
     public static final String UNAUTHORIZED = "UNAUTHORIZED";
     public static final String BRAND_NOT_SUPPORTED = "BRAND_NOT_SUPPORTED";
     public static final String LANDING_PAGE_NOT_FOUND = "LANDING_PAGE_NOT_FOUND";
+    /**
+     * {@code GET /categories}: the category indexer gave no category for the requested id — it does not
+     * exist, or the indexer could not be read. The two are not told apart on the wire on purpose (the
+     * category port is best effort); the real cause is logged as {@code CATEGORY_UNAVAILABLE}.
+     */
+    public static final String CATEGORY_NOT_FOUND = "CATEGORY_NOT_FOUND";
     public static final String CONTENT_SERVICE_UNAVAILABLE = "CONTENT_SERVICE_UNAVAILABLE";
     public static final String BLOCK_DISABLED = "BLOCK_DISABLED";
     public static final String BLOCK_SERVICE_UNAVAILABLE = "BLOCK_SERVICE_UNAVAILABLE";

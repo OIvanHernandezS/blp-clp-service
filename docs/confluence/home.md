@@ -21,6 +21,9 @@ summary: >
   `page_blp`/`page_clp` cuyo `category_id` es el último segmento de la URL, la componen (bloques
   estáticos tal cual, carruseles `products_list` resueltos o anunciados como *placeholder*) y le
   agregan `categoryData` (árbol del indexador de categorías + redirect del CMS).
+- **`GET /categories?categoryId=…`** — una categoría con sus subcategorías (imagen, título, URL y
+  metadata), leída del indexador con la forma de `categoryData`; cacheable en Akamai. Ver
+  [Categoría e hijos](funcionalidades/categorias.md).
 - **`POST /blp/blocks/products-list`** y **`POST /clp/blocks/products-list`** — resuelven en lote los
   carruseles que la página entregó *lazy*, contra Vertex, Salesforce, Salesforce V2 o Jewel según su
   `source_of_data`, quitando los productos de la lista negra.

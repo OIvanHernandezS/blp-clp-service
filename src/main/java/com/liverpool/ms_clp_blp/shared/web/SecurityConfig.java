@@ -255,6 +255,8 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/blp/**", configuration);
         source.registerCorsConfiguration("/clp/**", configuration);
+        // GET /categories is fetched from the storefront's browser like the landing pages.
+        source.registerCorsConfiguration("/categories", configuration);
         return source;
     }
 }
